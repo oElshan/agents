@@ -1,6 +1,6 @@
 ---
-description: "Kanban: Board. Показать Kanban-доску: колонки, WIP, блокировки, метрики. Пример: /board"
-argument-hint: ""
+description: "Kanban: Board. Доска: колонки, WIP, блокировки, метрики. По умолчанию — текущий спринт. /board | /board backlog | /board all | /board sprints"
+argument-hint: "<пусто=спринт | backlog | all | sprints>"
 ---
 
 # KANBAN — Board Status
@@ -30,6 +30,20 @@ argument-hint: ""
    только если она расшифрована в этом же отчёте.
 
 ## Алгоритм (АВТОНОМНО)
+
+### 0. Scope (что показываем)
+
+| `/board …` | Что |
+|---|---|
+| *(пусто)* | **текущий спринт** (`Sprint = orchestrator.current_sprint`) — то, по чему работает оркестратор |
+| `backlog` | интейк: issue без спринта (`Sprint` пусто) |
+| `all` | вся доска (спринт + бэклог) |
+| `sprints` | сводка по всем спринтам (число задач / Done в каждом) — как `/sprint list` |
+
+Возьми `CUR="$(current_sprint)"` (хелпер из `kanban-board-sync.md`). Ниже все `jq`-фильтры
+дополни отбором по scope: по умолчанию `select((.sprint//"")==$CUR)`; для `backlog` —
+`select((.sprint//"")=="")`; для `all` — без фильтра. В заголовке отчёта укажи scope и спринт.
+Если `CUR` пуст и scope=спринт — сообщи «текущий спринт не выбран (/sprint activate)».
 
 ### 1. Сделай один дамп доски
 
@@ -124,10 +138,10 @@ DEPENDENCIES:
 ### 4. Рекомендации
 
 На основе состояния доски дай рекомендации:
-- Если в Ready for Dev много задач → предложи `/develop #{next}`
-- Если в Testing много задач → предложи `/test all`
-- Если в Ready to Deploy → предложи `/deploy staging`
-- Если Backlog пуст → предложи `/feature`
+- Если в спринте есть незавершённые задачи → предложи `/orchestrate` (автопилот по спринту)
+- Если спринт пуст, а в бэклоге есть готовые stories → предложи `/sprint add #{N}` (утвердить в спринт)
+- Если в Ready to Deploy что-то ждёт, а деплой на паузе → напомни `/stage on deploy`
+- Если бэклог пуст → предложи `/feature`
 - Если есть блокировки → предложи решение
 
 ### 5. Sprint Standup View (Async Daily Standup)

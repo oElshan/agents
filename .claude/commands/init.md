@@ -107,7 +107,10 @@ ls docker-compose*.yml compose*.yml .github/workflows .gitlab-ci.yml Jenkinsfile
   `fix_loop_max: 3`. **СПРОСИ человека**, хочет ли иные пороги (ответ «дефолты» — оставить как есть).
 - `orchestrator.*`: дефолты петли `/orchestrate` — `mode: continuous`, `concurrency: auto`,
   `max_ticks: 20`, `stall_rounds: 2`, `budget_tokens: null`, `pace_seconds: 1200`,
-  `stop_on_human_gate: true`. Обычно оставить как есть.
+  `stop_on_human_gate: true`, `disabled_stages: []`. Обычно оставить как есть.
+- Спринтовая модель: `current_sprint: ""` (оркестратор работает только по текущему спринту,
+  бэклог не трогает — ставится позже через `/sprint activate`), `sprint_model: stories`,
+  `sprint_carryover: next`.
 
 ⚠️ Если профиль уже `initialized: true` — см. раздел «Идемпотентность» (подтверждение обязательно).
 
@@ -141,8 +144,8 @@ printf 'OWNER="%s"\nREPO="%s"\nPROJECT_NUMBER=%s\nPROJECT_ID="%s"\n' \
 ### ШАГ 5 — Поля доски (логика /setup-board)
 
 Выполни `.claude/commands/setup-board.md` целиком (идемпотентно — существующие поля
-пропускаются): 12 полей — Status, Type, Priority, Size, Component, Security, JavaReview,
-FrontendReview, QA, Deploy, Coverage, Parked; Status-опции с цветами и описаниями agent-per-status;
+пропускаются): 13 полей — Status, Type, Priority, Size, Component, Security, JavaReview,
+FrontendReview, QA, Deploy, Coverage, Parked, Sprint; Status-опции с цветами и описаниями agent-per-status;
 UI-настройка встроенных workflows проекта; напоминание о секрете `KANBAN_PROJECT_TOKEN`.
 Setup-board сам читает `.claude/board.env` из ШАГ 4.
 
@@ -355,9 +358,10 @@ Topology:   {monolith | modular-monolith | microservices; N сервисов}
 Следующие шаги:
   /feature <описание>  — создать первый Feature Request
   /kanban <описание>   — полный pipeline (идея → деплой)
-  /orchestrate         — автопилот: петля крутит доску сама до готовности
+  /sprint add #N       — утвердить задачу в текущий спринт (оркестратор работает по спринту)
+  /orchestrate         — автопилот: петля крутит текущий спринт до готовности
   /stage off deploy    — поставить стадию на паузу (экономия токенов; задачи ждут)
-  /board               — посмотреть доску
+  /board               — доска текущего спринта (/board backlog — интейк)
   /analyze, /develop, /test, /deploy — отдельные этапы
   /orchestrate once|swarm|<колонка> (алиасы /sweep, /swarm, /pick) — режимы оркестратора
 ```

@@ -141,6 +141,10 @@ orchestrator:
   pace_seconds: 1200        # сон при ожидании внешнего (человеческий APPROVE / общий idle); активный деплой опрашивается ~270с
   stop_on_human_gate: true  # prod-approve issue паркуются (Parked=human) и петля останавливается на них
   disabled_stages: []       # постоянно отключённые стадии (ставит /stage): analysis|develop|testing|deploy. Их агенты не запускаются, задачи ждут в буфере
+  # --- Спринтовая модель: оркестратор работает ТОЛЬКО по текущему спринту, бэклог не трогает ---
+  current_sprint: ""        # активный спринт (значение поля Sprint). Ставит /sprint activate. Пусто = спринт не выбран → оркестратор ничего не делает
+  sprint_model: stories     # stories (в спринт кладём готовые к разработке stories; анализ фич — вручную в бэклоге) | features (фичи целиком, анализ внутри спринта)
+  sprint_carryover: next    # при /sprint close недоделанное → next (следующий спринт) | backlog (назад в интейк)
 ```
 
 ---

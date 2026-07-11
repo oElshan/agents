@@ -30,7 +30,7 @@ argument-hint: "<пусто=continuous автопилот | once | swarm | backl
 |---|---|---|
 | `mode` | `once` (один тик) \| `continuous` (петля до остановки) | `orchestrator.mode` (обычно `continuous`) |
 | `concurrency` | `seq` (по очереди) \| `parallel` (все Team Leads разом) \| `auto` | `orchestrator.concurrency` |
-| `scope` | `board` \| `<колонка>` \| `#<issue>` \| `<колонка> #N #M …` | `board` |
+| `scope` | `sprint` (текущий) \| `sprint:<name>` \| `<колонка>` (в спринте) \| `#<issue>` \| `backlog`/`all` (явный escape) | `sprint` |
 | `take` | сколько задач взять из колонки (`all` \| число) | `all` (в рамках WIP) |
 | `until` | `drained` \| `goal` \| `budget` (для continuous) | `drained` |
 | `skip` | стадии, отключаемые **на этот запуск** (`analysis`/`develop`/`testing`/`deploy`, через запятую) | — |
@@ -41,16 +41,33 @@ argument-hint: "<пусто=continuous автопилот | once | swarm | backl
 Team Lead отключённой стадии НЕ запускается — его агенты не тратят токены, задачи держатся
 в буфере перед стадией (HELD, см. Шаг 4). Управление постоянными паузами — `/stage`.
 
+### Спринт-скоуп — ГЛАВНОЕ
+
+Оркестратор работает **только по текущему спринту** и **никогда не берёт из бэклога**.
+Текущий спринт — значение `orchestrator.current_sprint` из профиля (ставит `/sprint activate`).
+
+> **Инвариант «по факту, без домыслов».** Множество задач спринта берётся ИСКЛЮЧИТЕЛЬНО из
+> живого `kb_dump` каждый тик: issue, у которых поле `Sprint == current_sprint`. Оркестратор
+> НЕ ведёт свой список, НЕ решает, что «должно» быть в спринте, и НЕ пишет поле `Sprint` сам
+> (кроме `/sprint close` carry-over и наследования спринта авто-багом). Как задача попала в
+> спринт — рукой на доске или `/sprint add` — ему безразлично: он читает только факт (поле).
+> Есть задача со `Sprint=current` → берёт в работу. Нет таких → **ничего не делает** (Шаг 6, «спринт пуст»).
+
+- `scope=sprint` (дефолт) = `scope=board` — рабочая доска оркестратора и есть спринт (синонимы).
+- `scope=backlog` / `scope=all` — **явный escape** к интейку (`Sprint` пусто). Только ручные
+  операции, с предупреждением; автопилот их не использует.
+- `scope=<колонка>` / `#N` — сужение **внутри** спринта.
+
 ### Пресеты (в т.ч. как разворачиваются алиасы)
 
 | Ввод | Разворачивается в |
 |---|---|
-| `/orchestrate` | `mode=continuous concurrency=auto scope=board until=drained` — **автопилот** |
-| `/orchestrate once` | `mode=once concurrency=seq scope=board` — один right-to-left проход (**= /sweep**) |
-| `/orchestrate swarm` | `mode=once concurrency=parallel scope=board` (**= /swarm**) |
-| `/orchestrate <колонка>` | `mode=once concurrency=seq scope=<колонка>` |
+| `/orchestrate` | `mode=continuous concurrency=auto scope=sprint until=drained` — **автопилот по спринту** |
+| `/orchestrate once` | `mode=once concurrency=seq scope=sprint` — один right-to-left проход по спринту (**= /sweep**) |
+| `/orchestrate swarm` | `mode=once concurrency=parallel scope=sprint` (**= /swarm**) |
+| `/orchestrate <колонка>` | `mode=once concurrency=seq scope=<колонка>` (внутри спринта) |
 | `/orchestrate <колонка> #N #M` | `mode=once scope=<колонка>` только по этим issue |
-| `/orchestrate #N` | `mode=continuous scope=#N until=goal` — довести один issue/фичу до Done |
+| `/orchestrate #N` | `mode=continuous scope=#N until=goal` — довести один issue до Done |
 | `/orchestrate dry-run` | текущий пресет + `dry_run=true` |
 
 Колонки-аргументы: `backlog`, `ready-for-dev`, `testing`, `ready-to-deploy` (маппинг на Status
@@ -81,35 +98,50 @@ Team Lead отключённой стадии НЕ запускается — е
 
 ---
 
-## Шаг 2 — OBSERVE (снимок доски)
+## Шаг 2 — OBSERVE (снимок доски → срез спринта)
 
 ```bash
 kb_dump > "${TMPDIR:-/tmp}/orch.json"
+CUR="$(current_sprint)"    # значение orchestrator.current_sprint из профиля
 ```
 
-Один дамп даёт все issue со всеми полями (Status/Type/Priority/…/QA/Deploy/**Parked**).
-Посчитай **board_score** — сумму индексов стадий (мера прогресса):
+Один дамп даёт все issue со всеми полями (Status/…/**Parked**/**Sprint**). **Сузь до scope
+ПО ФАКТУ** — это и есть множество работы; ничего не додумывай:
+
+```bash
+# по умолчанию scope=sprint: только issue текущего спринта (поле Sprint == current)
+jq --arg cur "$CUR" '[.[] | select((.sprint // "")==$cur)]' "${TMPDIR:-/tmp}/orch.json" \
+  > "${TMPDIR:-/tmp}/orch.scope.json"
+# scope=backlog → select .sprint пусто ;  scope=all → без фильтра ;  scope=<колонка>/#N → доп. фильтр
+```
+
+**Если срез пуст** (на доске нет ни одной issue со `Sprint=$CUR`) → оркестратор **ничего не
+делает**: сразу Шаг 6, стоп-причина `EMPTY` («спринт пуст — добавь задачи в спринт»). Никаких
+попыток «найти работу» в бэклоге.
+
+Посчитай **board_score** — сумму индексов стадий (мера прогресса) по срезу:
 
 ```
 index: Backlog 0 · Analysis 1 · Ready for Dev 2 · In Development 3 · Code Review 4
      · Testing 5 · Ready to Deploy 6 · Deploy 7 · Done 8
-board_score = Σ index(status) по всем не-Parked issue в scope
+board_score = Σ index(status) по всем не-Parked issue в срезе спринта
 ```
 
 ```bash
 jq '[.[] | select((.parked // "no")=="no") | .status as $s |
      (["Backlog","Analysis","Ready for Dev","In Development","Code Review","Testing","Ready to Deploy","Deploy","Done"]
-      | index($s)) // 0] | add' "${TMPDIR:-/tmp}/orch.json"
+      | index($s)) // 0] | add' "${TMPDIR:-/tmp}/orch.scope.json"
 ```
 
 ---
 
 ## Шаг 3 — DIAGNOSE
 
-1. **WIP / capacity** (`wip_limit = quality.wip_limit`, default 5):
+1. **WIP / capacity** (`wip_limit = quality.wip_limit`, default 5) — считаем **по срезу спринта**
+   (`orch.scope.json`), а не по всей доске:
    ```
-   dev_wip  = count(In Development) + count(Code Review)
-   test_wip = count(Testing)
+   dev_wip  = count(In Development) + count(Code Review)   # в пределах спринта
+   test_wip = count(Testing)                               # в пределах спринта
    dev_capacity  = wip_limit - dev_wip
    test_capacity = wip_limit - test_wip
    ```
@@ -188,6 +220,7 @@ In Development → Ready for Dev → Analysis → Backlog
 
 ```
 ORCHESTRATE DRY-RUN — {date}
+Sprint: {current_sprint} ({N} задач на доске в этом спринте)
 Policy: mode={..} concurrency={..} scope={..} until={..}
 WIP: Dev {dev_wip}/{wip_limit} (cap {dev_capacity}) · Test {test_wip}/{wip_limit} (cap {test_capacity})
 
@@ -282,6 +315,7 @@ G2 → kanban_set feature 'Ready for Dev'. Стадию — ТОЛЬКО kanban_
 
 | Предикат | Условие | Итог |
 |---|---|---|
+| **EMPTY** | в срезе спринта нет ни одной issue (на доске ничего со `Sprint=current`) | 🈳 нечего делать |
 | **GOAL** | все не-Parked issue в scope = `Done` | ✅ success |
 | **HELD** | фронт пуст только из-за отключённых стадий, а в их буферах есть задачи | ⏸️ на паузе |
 | **DRAINED** | фронт пуст И нет in-flight агентов (остаток = Parked/BLOCKED) | ⏹ drained |
@@ -320,6 +354,7 @@ G2 → kanban_set feature 'Ready for Dev'. Стадию — ТОЛЬКО kanban_
 
 ```
 ORCHESTRATE {STOP-REASON} — {date}
+Sprint: {current_sprint} ({N} задач в спринте)
 Policy: mode={..} concurrency={..} scope={..} until={..}
 Ticks: {tick} · Duration: ~{time}
 
@@ -340,15 +375,15 @@ PARKED (нужен человек):
 BLOCKED (зависимости): 🚫 #N — by #M
 SKIPPED (WIP): ⊘ #N
 
-STOP REASON: {GOAL всё Done | HELD стадии {X} отключены, {N} задач ждут |
-              DRAINED остаток заблокирован | STALL нет прогресса {stall_rounds}× |
-              BUDGET {max_ticks} тиков/лимит токенов | HUMAN ждём APPROVE}
+STOP REASON: {EMPTY спринт пуст — добавь задачи (/sprint add) | GOAL всё Done |
+              HELD стадии {X} отключены, {N} задач ждут | DRAINED остаток заблокирован |
+              STALL нет прогресса {stall_rounds}× | BUDGET {max_ticks} тиков/лимит токенов | HUMAN ждём APPROVE}
 
-BOARD AFTER: Backlog {n} · Analysis {n} · Ready for Dev {n} · In Dev {n}/{wip} ·
+BOARD AFTER (спринт {current_sprint}): Ready for Dev {n} · In Dev {n}/{wip} ·
              Code Review {n} · Testing {n}/{wip} · Ready to Deploy {n} · Done(+{n})
 
-NEXT: {что человеку сделать — включить стадию `/stage on deploy`, разпарковать #N, дать APPROVE,
-       поднять WIP, разблокировать deps; либо «Board clear 🎉»}
+NEXT: {что человеку сделать — добавить задачи в спринт (/sprint add #N), включить стадию
+       (/stage on deploy), разпарковать #N, дать APPROVE, разблокировать deps; либо «Спринт закрыт 🎉»}
 ```
 
 В `mode=continuous`, если завершились по HUMAN/STALL/BUDGET и хочешь, чтобы петля продолжилась

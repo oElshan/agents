@@ -55,6 +55,7 @@ ID полей и опций **не хардкодятся** — резолвят
 | **Deploy** | single-select | none, staging, production | devops |
 | **Coverage** | number | % покрытия из QA | qa-lead |
 | **Parked** | single-select | no, deps, human, oscillation, budget | оркестратор (`/orchestrate`) |
+| **Sprint** | single-select | (пусто)=бэклог, `Sprint 1`, `Sprint 2`, … | **человек** (`/sprint` или перетаскивание на доске) |
 
 > Поля создаются один раз через `/setup-board`. `Component` — TEXT (CSV), т.к. ProjectV2
 > не имеет multi-select, а компонент бывает многозначным.
@@ -156,8 +157,9 @@ kb_dump(){ gh api graphql --paginate -f query='query($endCursor:String){ node(id
       qa:fieldValueByName(name:"QA"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       dp:fieldValueByName(name:"Deploy"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       cv:fieldValueByName(name:"Coverage"){ ... on ProjectV2ItemFieldNumberValue{number} }
-      pk:fieldValueByName(name:"Parked"){ ... on ProjectV2ItemFieldSingleSelectValue{name} } } } } } }' 2>/dev/null \
-   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number, parked:.pk.name}]'; }
+      pk:fieldValueByName(name:"Parked"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
+      sp:fieldValueByName(name:"Sprint"){ ... on ProjectV2ItemFieldSingleSelectValue{name} } } } } } }' 2>/dev/null \
+   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number, parked:.pk.name, sprint:.sp.name}]'; }
 
 # --- Удобный сеттер метаданных: kb_meta N type=story priority=high size=m component=backend,infra ---
 kb_meta(){ local N="$1"; shift
@@ -167,6 +169,20 @@ kb_meta(){ local N="$1"; shift
     size=*)      kb_set  "$N" Size      "${kv#size=}";;
     component=*) kb_text "$N" Component "${kv#component=}";;
   esac; done; }
+
+# --- текущий спринт из профиля (orchestrator.current_sprint). Пусто → спринт не задан ---
+current_sprint(){ grep -E '^[[:space:]]*current_sprint:' .claude/project-profile.md 2>/dev/null \
+  | head -1 | sed -E 's/.*current_sprint:[[:space:]]*"?([^"#]*)"?.*/\1/; s/[[:space:]]+$//'; }
+
+# --- issue спринта (по умолчанию — текущего): sprint_query [<name>] → number<TAB>status<TAB>title ---
+sprint_query(){ local S="${1:-$(current_sprint)}"
+  kb_dump | jq -r --arg s "$S" '.[] | select((.sprint//"")==$s) | "\(.number)\t\(.status // "—")\t\(.title)"'; }
+
+# --- назначить issue в спринт / вернуть в бэклог: kb_sprint N "Sprint 2"  |  kb_sprint N ""  (пустой → бэклог) ---
+kb_sprint(){ local N="$1" S="$2" fid item
+  if [ -n "$S" ]; then kb_set "$N" Sprint "$S"; return; fi
+  fid=$(kb_fields | jq -r '.fields[]|select(.name=="Sprint")|.id'); item="$(kb_item "$N")" || return 1
+  gh api graphql -f query="mutation{ clearProjectV2ItemFieldValue(input:{ projectId:\"$PROJECT_ID\" itemId:\"$item\" fieldId:\"$fid\" }){ projectV2Item{ id } } }" >/dev/null && echo "#$N Sprint=(бэклог)"; }
 ```
 
 ### Примеры
@@ -198,6 +214,18 @@ kb_meta "$N" type=story priority=high size=m component=backend   # метада�
 ```
 Без `kanban_set` issue не попадёт на доску — у него не будет Status. Лейблы при создании
 issue **не ставятся** — всё в поля.
+
+### Роутинг по спринту при создании (авто-задачи)
+
+Новая issue должна попасть в правильный спринт, иначе оркестратор её не увидит (или увидит не там):
+
+- **Баг/регресс на задаче текущего спринта** (создаёт security-reviewer / java-reviewer /
+  frontend-reviewer / qa-lead при FAIL) → **наследует спринт родителя**: `kb_sprint "$N" "$(current_sprint)"`.
+  Баг блокирует цель спринта — чинить в этом же спринте.
+- **Проактивный tech-debt** (postdeploy.sh / G9, ручные идеи) → **в бэклог**: `Sprint` не ставим
+  (`kb_sprint "$N" ""` или просто не трогаем поле). Триаж — на планировании.
+- Поле `Sprint` — единственный «писатель»-человек; это исключение (детерминированное наследование
+  родителя авто-багом), а не «домысел» оркестратора о содержимом спринта.
 
 ## ЗАПРЕЩЕНО
 

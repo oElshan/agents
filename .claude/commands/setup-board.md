@@ -73,10 +73,19 @@ mkfield "QA"         SINGLE_SELECT "pending,in-progress,passed,failed"
 mkfield "Deploy"     SINGLE_SELECT "none,staging,production"
 mkfield "Coverage"   NUMBER        ""
 mkfield "Parked"     SINGLE_SELECT "no,deps,human,oscillation,budget"
+mkfield "Sprint"     SINGLE_SELECT "Sprint 1"
 ```
 
 > `Parked` пишет ТОЛЬКО оркестратор (`/orchestrate`): помечает заклинившие/ждущие-человека
 > issue, чтобы петля не крутила их вхолостую. Остальные агенты его не трогают.
+>
+> `Sprint` — планирование: пусто = бэклог (интейк), значение = утверждённый спринт. Пишет
+> **человек** (перетаскиванием на доске или командой `/sprint`). Оркестратор его ТОЛЬКО читает
+> и работает исключительно по `Sprint = orchestrator.current_sprint`; бэклог не трогает никогда.
+> Новые спринты добавляет `/sprint new` (дописывает опцию). Iteration-поле не используем — его
+> нельзя создать через API (только single-select создаётся `mkfield`).
+>
+Отдельные view создаются в UI (через `gh`/API views не создаются) — см. ШАГ 3.5 ниже.
 
 ### 1.5. Добавь недостающие Status-опции на СУЩЕСТВУЮЩЕЙ доске
 
@@ -121,7 +130,7 @@ gh api graphql -f query='mutation($f:ID!){
 ### 2. Проверь поля
 
 ```bash
-# должны присутствовать все 12 полей системы (плюс встроенные Title/Assignees/…)
+# должны присутствовать все 13 полей системы (плюс встроенные Title/Assignees/…)
 gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format json \
  | jq -r '.fields[] | "\(.name) [\(.type)]\(if .options then "  " + ([.options[].name]|join("|")) else "" end)"'
 ```
@@ -133,6 +142,24 @@ gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format jso
 - `Item added to project`: default Status = `Backlog` (НЕ Done), либо выключить.
 - `Item closed` → Done — оставить.
 - `Auto-add to project` — выключить или ограничить `repo:$REPO` + `is:issue` (значение REPO — из board.env; чужие issue и PR на доску не попадают).
+
+### 3.5. Views: «доски» бэклога и спринта (UI, разово)
+
+View'ы через `gh`/API не создаются — только в UI. Функционально они **не обязательны**
+(оркестратор фильтрует по полю `Sprint` сам), но дают человеку разделение «бэклог vs спринт»
+и способ **перетаскивать задачи в спринт рукой**. Открой Project → «+ New view» и заведи три:
+
+| View | Layout | Group by | Filter | Зачем |
+|------|--------|----------|--------|-------|
+| **Sprint Board** | Board | `Status` | `sprint:"<текущий спринт>"` | обычный канбан, но только текущий спринт — то, по чему идёт `/orchestrate` |
+| **Backlog** | Table | — | `no:sprint` | интейк: всё без спринта |
+| **Planning** | Board | `Sprint` | — | колонки-спринты + «No Sprint»; **перетаскиваешь карточку в колонку спринта = утвердил** (эквивалент `/sprint add`) |
+
+- Фильтр пустого поля в GitHub — `no:sprint`; конкретного — `sprint:"Sprint 1"`.
+- Single-select не поддерживает `@current` — в «Sprint Board» фильтр по имени; при смене спринта
+  поправь фильтр (или пользуйся «Planning»-видом, где спринт задаётся перетаскиванием).
+- «Planning» — это и есть та «доска», где задачу двигаешь в спринт мышкой; оркестратор увидит
+  по факту (поле `Sprint`), как и при `/sprint add`.
 
 ### 4. Backstop workflow + secret
 
@@ -154,7 +181,7 @@ echo "Required: repo secret KANBAN_PROJECT_TOKEN
 KANBAN BOARD INITIALIZED (field-based)
 
 Project {PROJECT_NUMBER} ({OWNER}/{REPO} из .claude/board.env) — единственный источник правды.
-Поля (12): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage, Parked
+Поля (13): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage, Parked, Sprint
 Status (agent-per-status, 9): Backlog → Analysis → Ready for Dev → In Development
   → Code Review → Testing → Ready to Deploy → Deploy → Done
 Состояние двигают: kb_set / kanban_set (.claude/agents/kanban-board-sync.md)
