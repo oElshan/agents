@@ -602,7 +602,8 @@ Requires: #10, #12, #15
 |---------|------------|
 | `/setup-board` | Создать поля Project board (включая FrontendReview) + 9 Status-опций (agent-per-status). Лейблы НЕ создаются. Один раз. |
 | `/init` | Полная инициализация: авто-детект стека → project-profile.md + board.env + доска + system/memory. Один раз. |
-| `/refresh-agents` | Синхронизировать агентов из другого проекта-источника (project-profile.md и board.env НЕ синхронизируются) |
+| `/refresh-agents` | Синк фреймворка из источника (проект/сабмодуль): agents/commands/system/доки + мёрдж новых ключей профиля. project-profile.md (значения) и board.env НЕ трогаются |
+| `/adopt <url>` | Подключить фреймворк к текущему проекту через git-сабмодуль (или мигрировать со старой модели): submodule + refresh + setup-board + мёрдж профиля. `--update` — обновить. Runbook — `.claude/DISTRIBUTION.md` |
 
 ### Оркестрация — петля `/orchestrate` и пауза `/stage`
 

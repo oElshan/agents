@@ -1,141 +1,119 @@
 ---
-description: "Kanban: Refresh Agents. Синхронизирует агентов и команды из источника (другой проект). Примеры: /refresh-agents | /refresh-agents --source ~/other-project | /refresh-agents --dry-run"
+description: "Kanban: Refresh. Синк фреймворка из источника (проект/сабмодуль): agents, commands, system, доки + мёрдж новых ключей профиля. Примеры: /refresh-agents --source .agents-framework | --dry-run"
 argument-hint: "[--source <path>] [--dry-run] [--agents-only] [--commands-only]"
 ---
 
-# REFRESH AGENTS — $ARGUMENTS
+# REFRESH — синк агентского фреймворка из источника: $ARGUMENTS
 
-Обновляет агентскую систему (`.claude/agents/` и `.claude/commands/`) из источника.
-Применяет изменения, которые ты внёс в агентов, не перезаписывая файлы проекта вручную.
+Обновляет агентскую систему в `.claude/` из источника (другой проект или git-сабмодуль,
+напр. `.agents-framework`). Применяет обновления фреймворка, **не затирая проект-специфичные
+данные** и **не теряя заполненное**. Правила распределения — `.claude/DISTRIBUTION.md §2`.
+
+---
+
+## Правило синка (безопасность — соблюдать строго)
+
+| Категория | Файлы | Действие |
+|---|---|---|
+| **Framework** | `agents/*.md`, `commands/*.md`, `system/sdc.md`, `system/postdeploy.sh`, `AGENTS_FRAMEWORK.md`, `*_DESIGN.md`, `DISTRIBUTION.md`, `board.env.example`, `memory/stories/_template.md` | **overwrite** (берём из источника при CHANGED/NEW) |
+| **Accumulator** | `system/budget.md`, `system/ownership-map.md` | **seed-if-absent** (копировать ТОЛЬКО если файла нет; заполненный не трогать) |
+| **Project config** | `project-profile.md`*, `board.env`, `settings.json`, `settings.local.json`, `memory/*` (кроме `stories/_template.md`) | **preserve** (не трогать) |
+
+\* `project-profile.md` сам не перезаписывается, но его **ключи мёрджатся** — см. ШАГ 3.5.
+LOCAL-файлы (есть только у проекта) не удаляются никогда.
 
 ---
 
 ## Алгоритм (АВТОНОМНО)
 
-### ШАГ 1 — Разбор аргументов
+### ШАГ 1 — Аргументы
 
-Определи из `$ARGUMENTS`:
-- `--source <path>` — путь к проекту-источнику
-- `--dry-run` — только показать diff, ничего не изменять
-- `--agents-only` — обновить только `.claude/agents/`
-- `--commands-only` — обновить только `.claude/commands/`
+- `--source <path>` — корень источника (проект или сабмодуль; читаем `<path>/.claude/…`).
+- `--dry-run` — только показать план, ничего не менять.
+- `--agents-only` / `--commands-only` — сузить синк до соответствующей папки.
 
-Если `--source` не указан:
+Если `--source` не указан — поищи источник (сначала сабмодуль, потом соседние проекты):
 ```bash
-# Поищи другие проекты с агентской системой
-PROJECTS_DIR=$(dirname $(pwd))
-find "$PROJECTS_DIR" -maxdepth 2 -name "developer.md" -path "*/.claude/agents/*" 2>/dev/null | grep -v "$(pwd)"
+# git-сабмодуль с агентской системой?
+git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}' \
+  | while read p; do [ -f "$p/.claude/agents/developer.md" ] && echo "$p"; done
+# иначе — соседние проекты:
+find "$(dirname "$(pwd)")" -maxdepth 2 -name developer.md -path "*/.claude/agents/*" 2>/dev/null | grep -v "$(pwd)"
 ```
-
-Если найден ровно один другой проект — использовать его как источник (спроси пользователя подтверждение).
-Если найдено несколько — покажи список и попроси указать `--source`.
-Если не найдено — сообщи об ошибке и попроси `--source`.
-
----
+Ровно один кандидат → используй (подтверди у человека). Несколько → покажи список, попроси `--source`. Ноль → ошибка.
 
 ### ШАГ 2 — Чтение источника
 
+Собери файлы источника по категориям (см. правило синка):
 ```bash
-SOURCE_AGENTS="<source>/.claude/agents"
-SOURCE_COMMANDS="<source>/.claude/commands"
-
-# Список файлов в источнике
-ls "$SOURCE_AGENTS"/*.md 2>/dev/null
-ls "$SOURCE_COMMANDS"/*.md 2>/dev/null
+S="<source>/.claude"
+ls "$S"/agents/*.md "$S"/commands/*.md "$S"/system/* "$S"/*.md 2>/dev/null
 ```
+Прочитай каждый **Framework**- и **Accumulator**-файл. `project-profile.md`, `board.env`,
+`settings*.json`, содержимое `memory/` (кроме `stories/_template.md`) из источника **игнорируй**.
 
-Прочитай КАЖДЫЙ файл из источника (agents + commands). `.claude/board.env` и
-`.claude/project-profile.md` источника ИГНОРИРУЙ — они проект-специфичны
-(идентичность доски и профиль стека) и НИКОГДА не синхронизируются между проектами.
+### ШАГ 3 — Diff по категориям
 
----
-
-### ШАГ 3 — Сравнение с текущим проектом
-
-Для каждого файла из источника:
+Для каждого файла определи статус: `NEW` / `CHANGED` / `SAME` / `LOCAL`. Для Accumulator-файлов,
+которые уже есть локально → `SEED-SKIP` (не трогаем заполненное). Построй отчёт:
 
 ```
-CURRENT: .claude/agents/{file}.md
-SOURCE:  <source>/.claude/agents/{file}.md
+DIFF REPORT — source: <source>
 
-Статусы:
-  NEW      — файл есть в источнике, нет в текущем проекте
-  CHANGED  — файл отличается (сравни содержимое построчно)
-  SAME     — файлы идентичны
-  LOCAL    — файл есть только в текущем проекте (источник не имеет)
+FRAMEWORK (overwrite):
+  ↑ CHANGED  commands/orchestrate.md   (+40 lines)
+  + NEW      commands/sprint.md
+  + NEW      commands/stage.md
+  ↑ CHANGED  agents/kanban-board-sync.md
+  + NEW      AGENTS_FRAMEWORK.md / ORCHESTRATOR_DESIGN.md / SPRINT_MODEL_DESIGN.md / DISTRIBUTION.md
+  ✓ SAME     agents/analyst.md …
+  ~ LOCAL    agents/<кастомный>.md   (только у проекта — сохраняем)
+
+ACCUMULATOR (seed-if-absent):
+  + SEED     system/budget.md        (нет локально → засеять)
+  ⊘ SEED-SKIP system/ownership-map.md (уже заполнен → не трогаем)
+
+PROFILE KEYS: {N новых ключей к добавлению — см. ШАГ 3.5}
 ```
 
-Построй таблицу diff:
+### ШАГ 3.5 — Мёрдж ключей профиля (миграция старого проекта)
 
-```
-DIFF REPORT
-Source: <source_path>
+Сравни `orchestrator:`-блок и спринт-ключи в шаблоне источника (`<source>/.claude/project-profile.md`)
+с локальным `project-profile.md`. Найди **отсутствующие локально** ключи и добавь их с дефолтами
+из шаблона, **не меняя существующих значений** (стек/команды/пороги — проектные, остаются):
 
-AGENTS (.claude/agents/):
-  ✓ SAME     analyst.md
-  ↑ CHANGED  developer.md        (+15 lines, description updated)
-  ✓ SAME     architect.md
-  + NEW      performance-agent.md
-  ~ LOCAL    doc-sync.md         (only in current project, keep)
-  ~ LOCAL    integration-tester.md (only in current project, keep)
-  ~ LOCAL    frontend-reviewer.md (only in current project, keep)
+- `orchestrator:` целиком (`mode/concurrency/max_ticks/stall_rounds/budget_tokens/pace_seconds/stop_on_human_gate/disabled_stages`),
+- `current_sprint: ""`, `sprint_model: stories`, `sprint_carryover: next`.
 
-COMMANDS (.claude/commands/):
-  ✓ SAME     develop.md
-  ↑ CHANGED  test.md             (+8 lines)
-  ✓ SAME     board.md
-  + NEW      refresh-agents.md   (this file)
-
-Summary: 2 changed, 1 new, 0 deleted, 3 local-only
-```
-
----
+Покажи, что будет добавлено; в `--dry-run` — только показать. При отсутствии блока `orchestrator:`
+целиком — добавить его после блока `quality:`.
 
 ### ШАГ 4 — Применение (если не --dry-run)
 
-Для каждого файла со статусом `CHANGED` или `NEW`:
-1. Прочитай файл из источника
-2. Запиши в `.claude/agents/` или `.claude/commands/`
-3. Логируй: `Updated: .claude/agents/developer.md`
+- **Framework** `CHANGED`/`NEW` → записать из источника. `SAME`/`LOCAL` → пропустить.
+- **Accumulator** → записать ТОЛЬКО если `NEW` (нет локально). `SEED-SKIP` → пропустить.
+- **Profile keys** → дописать недостающие (ШАГ 3.5), значения не менять.
+- **Никогда**: не удалять локальные файлы; не трогать `project-profile.md` (кроме добавления
+  ключей), `board.env`, `settings*.json`, содержимое `memory/`.
 
-**ВАЖНО:**
-- Файлы со статусом `LOCAL` (есть только в текущем проекте) — НЕ удалять
-- Файлы `SAME` — пропустить
-- Никогда не удалять файлы из текущего проекта
-- `.claude/board.env` и `.claude/project-profile.md` — НИКОГДА не синхронизируются между
-  проектами (они проект-специфичны: идентичность доски и профиль стека). Исключи их из
-  копирования, даже если они есть в источнике; локальные версии не перезаписывать
-
----
-
-### ШАГ 5 — Финальный отчёт
+### ШАГ 5 — Отчёт + следующие шаги
 
 ```
-REFRESH AGENTS COMPLETE
-{date}
+REFRESH COMPLETE — {date} · source: <source>
 
-Source: <source_path>
-
-Applied:
-  ↑ .claude/agents/developer.md   — updated (был: v1.2, стал: v1.3)
-  + .claude/agents/new-agent.md   — added
-  ↑ .claude/commands/test.md      — updated
-
-Skipped (identical):
-  ✓ analyst.md, architect.md, devops.md, ... (N files)
-
-Preserved (local-only):
-  ~ doc-sync.md, integration-tester.md, frontend-reviewer.md
-
-Excluded (project-specific, never synced):
-  ⊘ .claude/board.env, .claude/project-profile.md
-
-{if dry-run}
-DRY RUN — изменения не применены. Запусти без --dry-run чтобы применить.
-{endif}
+Framework applied:  {N} обновлено, {M} добавлено
+Accumulator seeded: {k} (пропущено заполненных: {s})
+Profile keys added: {список или «нет»}
+Preserved:          project-profile.md (значения), board.env, settings*, memory/*
+Local-only kept:    {файлы}
 
 NEXT STEPS:
-  • Изменения активны с текущей сессии (агенты читаются из файлов)
-  • Закоммить обновления: git add .claude/ && git commit -m "chore: refresh agent system"
-  • Запусти /board чтобы проверить что всё работает
+  • /setup-board — добавить новые поля доски (Parked, Sprint), если их ещё нет (идемпотентно)
+  • сверь профиль: значения стека/команд — твои; добавлены только новые ключи
+  • /board — проверить, что доска читается
+  • закоммить: git add .claude/ && git commit -m "chore: обновить агентский фреймворк"
+
+{if dry-run}  DRY RUN — ничего не применено. Запусти без --dry-run.  {endif}
 ```
+
+Подробный сценарий подключения/миграции на новый проект — `.claude/DISTRIBUTION.md`.
