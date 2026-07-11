@@ -54,6 +54,7 @@ ID полей и опций **не хардкодятся** — резолвят
 | **QA** | single-select | pending, in-progress, passed, failed | qa-lead |
 | **Deploy** | single-select | none, staging, production | devops |
 | **Coverage** | number | % покрытия из QA | qa-lead |
+| **Parked** | single-select | no, deps, human, oscillation, budget | оркестратор (`/orchestrate`) |
 
 > Поля создаются один раз через `/setup-board`. `Component` — TEXT (CSV), т.к. ProjectV2
 > не имеет multi-select, а компонент бывает многозначным.
@@ -154,8 +155,9 @@ kb_dump(){ gh api graphql --paginate -f query='query($endCursor:String){ node(id
       fr:fieldValueByName(name:"FrontendReview"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       qa:fieldValueByName(name:"QA"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       dp:fieldValueByName(name:"Deploy"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
-      cv:fieldValueByName(name:"Coverage"){ ... on ProjectV2ItemFieldNumberValue{number} } } } } } }' 2>/dev/null \
-   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number}]'; }
+      cv:fieldValueByName(name:"Coverage"){ ... on ProjectV2ItemFieldNumberValue{number} }
+      pk:fieldValueByName(name:"Parked"){ ... on ProjectV2ItemFieldSingleSelectValue{name} } } } } } }' 2>/dev/null \
+   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number, parked:.pk.name}]'; }
 
 # --- Удобный сеттер метаданных: kb_meta N type=story priority=high size=m component=backend,infra ---
 kb_meta(){ local N="$1"; shift

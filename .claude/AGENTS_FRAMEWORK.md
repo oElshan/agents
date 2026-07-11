@@ -23,7 +23,15 @@
 - `/test #N` — написать TC-документацию
 - `/deploy staging` / `/deploy production` — задеплоить
 - `/kanban <описание>` — полный пайплайн одной командой (всё выше подряд)
+- `/orchestrate` — **автопилот**: замкнутая петля сама крутит доску до готовности (человек больше не «петля»)
+- `/stage off deploy` — поставить стадию на паузу (0 токенов; задачи ждут в буфере)
 - `/board` — посмотреть состояние доски, WIP, блокировки
+
+**Автопилот (loop engineering).** `/orchestrate` — единый оркестратор: вместо прохода-за-проходом
+руками он сам повторяет цикл «посмотрел доску → выбрал что двигать → запустил Team Leads →
+снова посмотрел» и останавливается по явной причине с отчётом. `/sweep`/`/swarm`/`/pick` —
+его пресеты (обратная совместимость). Стадии можно ставить на паузу через `/stage`. Подробно
+ниже (§ «Оркестрация») и в `.claude/ORCHESTRATOR_DESIGN.md`.
 
 **Память и контекст.** Чтобы не жечь токены — четыре слоя shared-памяти:
 0. `.claude/project-profile.md` — стек, топология сервисов, канонические команды (build/test/deploy), пороги качества. Читается ЛЮБЫМ агентом первым.
@@ -533,6 +541,7 @@ Requires: #10, #12, #15
 | **QA** | single-select | pending, in-progress, passed, failed | `qa:*` | qa-lead |
 | **Deploy** | single-select | none, staging, production | `deployed:*` | devops |
 | **Coverage** | number | % покрытия | (текст в `qa:passed`) | qa-lead |
+| **Parked** | single-select | no, deps, human, oscillation, budget | — (новое) | **оркестратор** (`/orchestrate`) |
 
 Установка: `kb_meta N type=story priority=high size=m component=backend,infra`,
 `kb_set N Security passed`, `kb_num N Coverage 96`. Чтение: `kb_get N Security`.
@@ -576,11 +585,13 @@ Requires: #10, #12, #15
 
 | Команда | Что делает |
 |---------|------------|
+| `/orchestrate [once\|swarm\|<колонка>\|#N\|dry-run]` | **Единый оркестратор** — замкнутая петля над доской до остановки (drained/stall/budget/human/held). `/orchestrate` без аргумента = автопилот continuous. Ядро для трёх алиасов ниже |
+| `/stage [off\|on <стадия…>]` | Пауза/возобновление стадий (analysis\|develop\|testing\|deploy). Отключённая = не запускается (0 токенов), задачи ждут в буфере. Без аргумента — статус |
 | `/kanban <описание>` | Полный pipeline: Feature → Analysis → Develop → Test → Deploy (гейты G1–G8) |
-| `/swarm [develop\|test\|analyze\|dry-run]` | Все Team Leads ПАРАЛЛЕЛЬНО по всей доске |
-| `/sweep [колонка\|dry-run]` | Автопилот right-to-left (deploy → test → dev → analysis) |
+| `/swarm [develop\|test\|analyze\|dry-run]` | **Алиас** `/orchestrate` — один проход, все Team Leads ПАРАЛЛЕЛЬНО |
+| `/sweep [колонка\|dry-run]` | **Алиас** `/orchestrate` — один проход right-to-left, последовательно |
 | `/board` | Kanban-доска: колонки, WIP, блокировки, зависимости, метрики |
-| `/pick <колонка>` | Взять следующую задачу по приоритету (critical → high → medium → low) |
+| `/pick <колонка>` | **Алиас** `/orchestrate` — одна задача по приоритету (critical → high → medium → low) |
 
 ### Настройка
 
@@ -590,13 +601,66 @@ Requires: #10, #12, #15
 | `/init` | Полная инициализация: авто-детект стека → project-profile.md + board.env + доска + system/memory. Один раз. |
 | `/refresh-agents` | Синхронизировать агентов из другого проекта-источника (project-profile.md и board.env НЕ синхронизируются) |
 
-### /sweep vs /swarm
+### Оркестрация — петля `/orchestrate` и пауза `/stage`
 
-| | `/sweep` | `/swarm` |
-|---|----------|----------|
-| Порядок | Right-to-left (сначала deploy, потом test, потом dev) | Все Team Leads одновременно |
-| Безопасность | Порядок гарантирован, минимум гонок | Возможны гонки на полях доски (несколько Team Lead'ов пишут разные поля) |
-| Когда | Обычная обработка всей доски | Нужна максимальная скорость |
+Единый оркестратор (ядро — `.claude/commands/orchestrate.md`, дизайн и обоснование —
+`.claude/ORCHESTRATOR_DESIGN.md`). Раньше `/sweep`/`/swarm`/`/pick` делали **один проход за
+вызов**, а повторение запускал человек. Теперь это одна **замкнутая петля**, а те три команды —
+её пресеты (обратная совместимость сохранена).
+
+**Петля (reconcile tick):**
+```
+   ┌──────────────────────────────────────────────────────┐
+   ▼                                                       │
+OBSERVE ─► DIAGNOSE ─► PLAN ─► ACT ─► OBSERVE′ ─► termination?
+(kb_dump) (WIP/deps/  (фронт   (Team   (собрать    │  нет → следующий тик
+          осцилляция) right-   Leads)  результат)  │  да  → отчёт «почему стоп + что осталось»
+          /human)    to-left)                      │
+```
+`mode=continuous` (дефолт `/orchestrate`) — **человек больше не петля**: после ACT оркестратор
+заново читает доску и сам решает тикнуть снова.
+
+**Причины остановки (явные предикаты):**
+
+| Причина | Когда |
+|---|---|
+| **GOAL** ✅ | все задачи в scope = Done |
+| **HELD** ⏸️ | работа стоит только из-за отключённой стадии (задачи ждут в буфере) — проверяется ПЕРЕД DRAINED, чтобы не соврать «всё готово» |
+| **DRAINED** ⏹ | двигать нечего, остаток = Parked/BLOCKED |
+| **STALL** ⚠️ | нет прогресса `orchestrator.stall_rounds` тиков подряд и никто не в работе |
+| **BUDGET** 💰 | исчерпан `max_ticks` / `budget_tokens` |
+| **HUMAN** 🙋 | остались только задачи, ждущие `APPROVE PRODUCTION DEPLOY` |
+
+**Парковка.** Заклинившие (осцилляция ≥ `fix_loop_max`), ждущие человека и с циклическими
+зависимостями issue помечаются полем `Parked` — исключаются из фронта (не жгут тики) и
+всплывают в отчёте. Авто-распарковка: `deps` при разрешении зависимостей, `human` при появлении
+APPROVE; `oscillation` снимает только человек.
+
+**Пресеты (обратная совместимость):**
+
+| Команда | mode | concurrency | scope | Когда |
+|---|---|---|---|---|
+| `/orchestrate` | **continuous** | auto | board | Автопилот: петля до GOAL/HELD/DRAINED/STALL/BUDGET/HUMAN |
+| `/sweep` | once | seq | board / колонка | Один проход right-to-left, минимум гонок |
+| `/swarm` | once | parallel | board / stage | Один проход, максимальная скорость (гонки допустимы — поля single-writer) |
+| `/pick` | once | seq | одна колонка, `take=1` | Взять одну верхнюю по приоритету задачу |
+
+**Пауза стадий — `/stage`.** Стадию (`analysis`/`develop`/`testing`/`deploy`) можно временно
+выключить: её Team Lead не запускается (ноль токенов), задачи копятся в буфере перед стадией и
+ждут. Это **пауза, а не пропуск** — гейты качества не обходятся, ничего не деградирует; включил
+обратно (`/stage on`) — накопленное течёт дальше. Уже начатые задачи дорабатываются (drain).
+Постоянные паузы — `orchestrator.disabled_stages` в профиле; разовая на один запуск — токен
+`skip:` (`/orchestrate skip:deploy`). Отключить security-ревью нельзя — это защитный гейт.
+
+| Стадия | Team Lead (не запускается) | Задачи ждут в |
+|---|---|---|
+| `analysis` | analysis-lead | Backlog |
+| `develop` | dev-lead | Ready for Dev |
+| `testing` | qa-lead | Testing |
+| `deploy` | ops-lead | Ready to Deploy |
+
+> ⚠️ Пауза деплоя транзитивна: пока задача не выложена (не `Done`), задачи с `Blocked by:` на
+> неё остаются заблокированными — отчёт это показывает.
 
 ---
 

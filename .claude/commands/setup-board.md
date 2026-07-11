@@ -72,7 +72,11 @@ mkfield "FrontendReview" SINGLE_SELECT "pending,passed,warning,failed"
 mkfield "QA"         SINGLE_SELECT "pending,in-progress,passed,failed"
 mkfield "Deploy"     SINGLE_SELECT "none,staging,production"
 mkfield "Coverage"   NUMBER        ""
+mkfield "Parked"     SINGLE_SELECT "no,deps,human,oscillation,budget"
 ```
+
+> `Parked` пишет ТОЛЬКО оркестратор (`/orchestrate`): помечает заклинившие/ждущие-человека
+> issue, чтобы петля не крутила их вхолостую. Остальные агенты его не трогают.
 
 ### 1.5. Добавь недостающие Status-опции на СУЩЕСТВУЮЩЕЙ доске
 
@@ -117,7 +121,7 @@ gh api graphql -f query='mutation($f:ID!){
 ### 2. Проверь поля
 
 ```bash
-# должны присутствовать все 11 полей системы (плюс встроенные Title/Assignees/…)
+# должны присутствовать все 12 полей системы (плюс встроенные Title/Assignees/…)
 gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format json \
  | jq -r '.fields[] | "\(.name) [\(.type)]\(if .options then "  " + ([.options[].name]|join("|")) else "" end)"'
 ```
@@ -150,12 +154,12 @@ echo "Required: repo secret KANBAN_PROJECT_TOKEN
 KANBAN BOARD INITIALIZED (field-based)
 
 Project {PROJECT_NUMBER} ({OWNER}/{REPO} из .claude/board.env) — единственный источник правды.
-Поля (11): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage
+Поля (12): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage, Parked
 Status (agent-per-status, 9): Backlog → Analysis → Ready for Dev → In Development
   → Code Review → Testing → Ready to Deploy → Deploy → Done
 Состояние двигают: kb_set / kanban_set (.claude/agents/kanban-board-sync.md)
 Backstop: .github/workflows/kanban-reconcile.yml (secret KANBAN_PROJECT_TOKEN)
 Лейблы: НЕ используются для состояния.
 
-Ready: /feature /analyze /develop /test /deploy /kanban /board /pick /sweep /swarm
+Ready: /feature /analyze /develop /test /deploy /kanban /board /orchestrate /stage (/pick /sweep /swarm — алиасы)
 ```

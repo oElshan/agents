@@ -123,6 +123,26 @@ quality:
   fix_loop_max: 3           # circuit breaker: попыток исправления до эскалации человеку
 ```
 
+## 6. Оркестрация (петля `/orchestrate`)
+
+Политика единого оркестратора. Задаёт дефолты замкнутой петли; аргументы команды и пресеты
+(`/sweep`/`/swarm`/`/pick`) переопределяют. Термины — в `.claude/ORCHESTRATOR_DESIGN.md`.
+
+> ⚠️ Это **runtime-бюджет петли** (тики/токены/время). Не путать с
+> `.claude/system/budget.md` — там бюджет **архитектурной сложности** (ratchet → ADR).
+
+```yaml
+orchestrator:
+  mode: continuous          # single-tick (один проход, как старый /sweep) | continuous (петля до остановки)
+  concurrency: auto         # seq (по очереди, минимум гонок) | parallel (все Team Leads разом) | auto
+  max_ticks: 20             # жёсткий потолок числа тиков петли
+  stall_rounds: 2           # тиков без прогресса подряд → STALL (нет prog. + нет in-flight → стоп)
+  budget_tokens: null       # опциональный потолок токенов на прогон; null = без лимита
+  pace_seconds: 1200        # сон при ожидании внешнего (человеческий APPROVE / общий idle); активный деплой опрашивается ~270с
+  stop_on_human_gate: true  # prod-approve issue паркуются (Parked=human) и петля останавливается на них
+  disabled_stages: []       # постоянно отключённые стадии (ставит /stage): analysis|develop|testing|deploy. Их агенты не запускаются, задачи ждут в буфере
+```
+
 ---
 
 ## Fallback Detect (когда `initialized: false`)

@@ -105,6 +105,9 @@ ls docker-compose*.yml compose*.yml .github/workflows .gitlab-ci.yml Jenkinsfile
   `{service}` в `test_one_service`;
 - `quality.*`: дефолты — `unit_coverage_min: 95`, `hotfix_coverage_min: 50`, `wip_limit: 5`,
   `fix_loop_max: 3`. **СПРОСИ человека**, хочет ли иные пороги (ответ «дефолты» — оставить как есть).
+- `orchestrator.*`: дефолты петли `/orchestrate` — `mode: continuous`, `concurrency: auto`,
+  `max_ticks: 20`, `stall_rounds: 2`, `budget_tokens: null`, `pace_seconds: 1200`,
+  `stop_on_human_gate: true`. Обычно оставить как есть.
 
 ⚠️ Если профиль уже `initialized: true` — см. раздел «Идемпотентность» (подтверждение обязательно).
 
@@ -138,8 +141,8 @@ printf 'OWNER="%s"\nREPO="%s"\nPROJECT_NUMBER=%s\nPROJECT_ID="%s"\n' \
 ### ШАГ 5 — Поля доски (логика /setup-board)
 
 Выполни `.claude/commands/setup-board.md` целиком (идемпотентно — существующие поля
-пропускаются): 11 полей — Status, Type, Priority, Size, Component, Security, JavaReview,
-FrontendReview, QA, Deploy, Coverage; Status-опции с цветами и описаниями agent-per-status;
+пропускаются): 12 полей — Status, Type, Priority, Size, Component, Security, JavaReview,
+FrontendReview, QA, Deploy, Coverage, Parked; Status-опции с цветами и описаниями agent-per-status;
 UI-настройка встроенных workflows проекта; напоминание о секрете `KANBAN_PROJECT_TOKEN`.
 Setup-board сам читает `.claude/board.env` из ШАГ 4.
 
@@ -352,6 +355,9 @@ Topology:   {monolith | modular-monolith | microservices; N сервисов}
 Следующие шаги:
   /feature <описание>  — создать первый Feature Request
   /kanban <описание>   — полный pipeline (идея → деплой)
+  /orchestrate         — автопилот: петля крутит доску сама до готовности
+  /stage off deploy    — поставить стадию на паузу (экономия токенов; задачи ждут)
   /board               — посмотреть доску
-  /analyze, /develop, /test, /deploy, /pick, /sweep, /swarm — отдельные этапы
+  /analyze, /develop, /test, /deploy — отдельные этапы
+  /orchestrate once|swarm|<колонка> (алиасы /sweep, /swarm, /pick) — режимы оркестратора
 ```
