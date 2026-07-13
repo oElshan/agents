@@ -3,8 +3,9 @@
 Как подключить эту агентскую систему к другому проекту (в т.ч. где работала **старая модель**),
 держать её обновляемой через git и не затирать проект-специфичные данные.
 
-> **Статус тулинга:** runbook работает уже сейчас — вручную и через `/refresh-agents`
-> (расширен под этот сценарий). Обёртка-одной-командой (`/adopt`) — на согласовании.
+> **Статус тулинга:** remote фреймворка есть (`https://github.com/oElshan/agents.git`, `main`==`develop`).
+> Обёртка `/adopt` реализована, но у неё есть ограничение bootstrap'а (курица и яйцо) — см. §3:
+> **первое** подключение со старой версии всегда делается вручную, `/adopt` берёт на себя апдейты.
 
 ---
 
@@ -39,30 +40,47 @@ Claude Code читает `<корень>/.claude/`, а сабмодуль жив
 
 ## 3. Однократное подключение (в т.ч. миграция со старой модели)
 
-### Одной командой — `/adopt` (рекомендуется)
+> ⚠️ **Проблема курицы и яйца.** Команда `/adopt` живёт в самом фреймворке (`.claude/commands/adopt.md`).
+> На проекте, где стоит **старая версия** (или фреймворка нет вообще), `/adopt` ещё **не существует** —
+> значит первым шагом её вызвать нельзя. Поэтому **первое подключение всегда bootstrap вручную**
+> (git + `/refresh-agents --source`), а `/adopt` берёт на себя все **последующие** обновления.
+> Исключение: если `adopt.md` установлен на уровне пользователя (`~/.claude/commands/adopt.md`) —
+> тогда `/adopt` доступен как first-touch в любом проекте.
+
+### Bootstrap — первое подключение (обязательно вручную)
 
 ```bash
-# 0. (однократно у фреймворка) запушить репо на remote — сейчас remote'а нет:
-#    git remote add origin git@github.com:<you>/claude-agents.git && git push -u origin main
+# 0. remote фреймворка уже есть → https://github.com/oElshan/agents.git (main == develop)
 
-# --- в целевом проекте: всё за раз (submodule + refresh + setup-board + мёрдж профиля) ---
-/adopt <url-фреймворка>          # или /adopt --path /локальный/путь/agents
+# --- в целевом проекте ---
+git submodule add https://github.com/oElshan/agents.git .agents-framework   # 1. сабмодуль (source of truth)
+git submodule update --init --recursive .agents-framework
+/refresh-agents --source .agents-framework      # 2. синк СТАРОЙ командой (она уже умеет --source):
+#    принесёт новые файлы, включая adopt.md/orchestrate.md/sprint.md/stage.md и новый refresh
+```
+→ **перезапусти Claude Code** (чтобы `.claude/commands/` перечитались и появились новые команды), далее:
+```bash
+/adopt --update        # 3. правильный синк: seed accumulator + мёрдж ключей профиля + поля доски
+/setup-board           # 4. поля доски Parked/Sprint (идемпотентно)
+/init                  # 5. если project-profile.md нет — авто-детект стека
 /sprint new "Sprint 1" && /sprint activate "Sprint 1"
 /board
 ```
+
+> Нет даже старого `/refresh-agents --source`? Сделай шаг 2 руками: скопируй
+> `.agents-framework/.claude/{agents,commands}` в `.claude/` (framework-файлы overwrite; `project-profile.md`,
+> `board.env`, `settings*.json`, `memory/` — **не трогай**, см. §2), затем перезапуск и шаги 3–5.
+
+### `/adopt` — одной командой (когда новая версия уже стоит / для апдейтов)
+
+Доступно после bootstrap либо при глобальной установке `~/.claude/commands/adopt.md`:
+```bash
+/adopt https://github.com/oElshan/agents.git   # первое подключение одной командой (если /adopt уже доступен)
+/adopt --update                                 # обновить уже подключённый фреймворк
+/adopt <url> --dry-run                          # план без изменений
+```
 `/adopt` сам определит режим (MIGRATION — старый фреймворк уже есть / FRESH — чистый проект),
 подключит сабмодуль, синкнет в `.claude/`, добавит поля доски и домёрджит ключи профиля.
-Обновлять потом: `/adopt --update`. План без изменений: `/adopt <url> --dry-run`.
-
-### Вручную (fallback, если не через /adopt)
-
-```bash
-git submodule add <url-фреймворка> .agents-framework   # 1. сабмодуль (source of truth)
-/refresh-agents --source .agents-framework              # 2. синк + мёрдж ключей профиля (§2)
-/setup-board                                            # 3. поля доски (Parked, Sprint) — идемпотентно
-/sprint new "Sprint 1" && /sprint activate "Sprint 1"   # 4. включить спринт
-/board
-```
 
 ### Что именно меняется при миграции со старой модели
 

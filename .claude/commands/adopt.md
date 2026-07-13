@@ -12,6 +12,12 @@ argument-hint: "<url> | --url <git-url> [--dir <d>] | --path <local> | --update 
 > **Выполняется на ЦЕЛЕВОМ проекте**, не в репо-фреймворке. Проект-специфичное
 > (`project-profile.md`, `board.env`, `memory/`) не затирается — см. правило синка в DISTRIBUTION §2.
 
+> ⚠️ **Курица и яйцо:** эта команда доступна, только если новая версия фреймворка **уже стоит**
+> на проекте (или `adopt.md` установлен глобально в `~/.claude/commands/`). На проекте со старой
+> версией `/adopt` ещё нет — **первое** подключение bootstrap-ится вручную:
+> `git submodule add <url> .agents-framework` → `/refresh-agents --source .agents-framework` →
+> перезапуск Claude Code, и только дальше `/adopt --update`. Полный порядок — DISTRIBUTION §3.
+
 ---
 
 ## ШАГ 1 — Аргументы и режим
