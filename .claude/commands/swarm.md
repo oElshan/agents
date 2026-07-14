@@ -11,7 +11,7 @@ argument-hint: "<пусто=вся доска | analyze|develop|test|deploy [#N 
 
 ## Маппинг `$ARGUMENTS` → политика оркестратора
 
-Stage → колонка Status: `analyze`→`Sprint` (feature/epic), `develop`→Ready for Dev (+ dev-ready в `Sprint`), `test`→Testing, `deploy`→Ready to Deploy. `Backlog` — интейк, автопилот его не берёт.
+Stage → колонка Status: `analyze`→Sprint (очередь), `develop`→Ready for Dev, `test`→Testing, `deploy`→Ready to Deploy.
 
 | `/swarm …` | Политика `/orchestrate` |
 |---|---|

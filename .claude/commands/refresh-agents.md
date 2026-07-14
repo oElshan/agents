@@ -82,9 +82,10 @@ PROFILE KEYS: {N новых ключей к добавлению — см. ША�
 с локальным `project-profile.md`. Найди **отсутствующие локально** ключи и добавь их с дефолтами
 из шаблона, **не меняя существующих значений** (стек/команды/пороги — проектные, остаются):
 
-- `orchestrator:` целиком (`mode/concurrency/max_ticks/stall_rounds/budget_tokens/pace_seconds/stop_on_human_gate/disabled_stages`).
-  Ключей `current_sprint`/`sprint_model`/`sprint_carryover` больше нет — спринт стал Status-колонкой
-  `Sprint`. Если они остались в локальном профиле от старой версии — можно удалить (не обязательно).
+- `orchestrator:` целиком (`mode/concurrency/max_ticks/stall_rounds/budget_tokens/pace_seconds/stop_on_human_gate/disabled_stages`),
+- ⚠️ ключи `current_sprint`/`sprint_model`/`sprint_carryover` — **легаси** (именованные спринты
+  упразднены; очередь = колонка `Status=Sprint`). Если их нет локально — не добавляй; если есть —
+  оставь закомментированными, оркестратор их игнорирует.
 
 Покажи, что будет добавлено; в `--dry-run` — только показать. При отсутствии блока `orchestrator:`
 целиком — добавить его после блока `quality:`.

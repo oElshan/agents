@@ -1,6 +1,6 @@
 ---
 description: "Kanban: Pick (алиас /orchestrate). Взять ОДНУ следующую задачу по приоритету. Примеры: /pick sprint | /pick ready-for-dev | /pick testing | /pick ready-to-deploy"
-argument-hint: "<sprint | ready-for-dev | testing | ready-to-deploy>"
+argument-hint: "<sprint | ready-for-dev | testing | ready-to-deploy | backlog>"
 ---
 
 # PICK — алиас `/orchestrate` (одна задача из колонки)
@@ -14,14 +14,13 @@ argument-hint: "<sprint | ready-for-dev | testing | ready-to-deploy>"
 
 | `/pick …` | Политика `/orchestrate` |
 |---|---|
-| `sprint` | `mode=once concurrency=seq scope=sprint take=1` — взять новую работу из колонки `Sprint` (feature→анализ / dev-ready→разработка) |
+| `sprint` | `mode=once concurrency=seq scope=sprint take=1` — взять одну из очереди `Sprint` → Analysis |
 | `ready-for-dev` | `mode=once concurrency=seq scope=ready-for-dev take=1` |
 | `testing` | `mode=once concurrency=seq scope=testing take=1` |
 | `ready-to-deploy` | `mode=once concurrency=seq scope=ready-to-deploy take=1` |
+| `backlog` | `mode=once concurrency=seq scope=backlog take=1` — ⚠️ ручной escape к интейку (автопилот бэклог не трогает) |
 
-Здесь `scope=sprint` — именно **колонка `Sprint`** (приём новой работы), не всё рабочее множество.
-Транзитные `Code Review`/`Deploy` не таргетятся — ими владеют dev-lead/ops-lead. `backlog` (интейк)
-автопилотом не берётся — это ручной escape через `/orchestrate scope=backlog`.
+Транзитные `Code Review`/`Deploy` не таргетятся — ими владеют dev-lead/ops-lead.
 
 **Действие:** разверни аргумент в политику выше и выполни `.claude/commands/orchestrate.md`
 с ней (Шаги 1–8).

@@ -43,7 +43,7 @@ ID полей и опций **не хардкодятся** — резолвят
 
 | Поле | Тип | Значения | Пишет (single-writer) |
 |------|-----|----------|----------------------|
-| **Status** | single-select | Backlog, **Sprint**, Analysis, Ready for Dev, In Development, Code Review, Testing, Ready to Deploy, Deploy, Done | Team Lead (`kanban_set`); **человек** кладёт задачу в `Sprint` |
+| **Status** | single-select | Backlog, **Sprint** (очередь), Analysis, Ready for Dev, In Development, Code Review, Testing, Ready to Deploy, Deploy, Done | Team Lead (`kanban_set`); в `Sprint` кладёт человек |
 | **Type** | single-select | feature, epic, story, bug, tech-debt, hotfix, spike | analyst |
 | **Priority** | single-select | critical, high, medium, low | analyst |
 | **Size** | single-select | xs, s, m, l, xl | analyst |
@@ -55,6 +55,7 @@ ID полей и опций **не хардкодятся** — резолвят
 | **Deploy** | single-select | none, staging, production | devops |
 | **Coverage** | number | % покрытия из QA | qa-lead |
 | **Parked** | single-select | no, deps, human, oscillation, budget | оркестратор (`/orchestrate`) |
+| **Sprint** | single-select | ⚠️ ЛЕГАСИ — не используется. Очередь оркестратора теперь = колонка `Status=Sprint`, а не это поле | — (deprecated) |
 
 > Поля создаются один раз через `/setup-board`. `Component` — TEXT (CSV), т.к. ProjectV2
 > не имеет multi-select, а компонент бывает многозначным.
@@ -79,8 +80,8 @@ ID полей и опций **не хардкодятся** — резолвят
 
 | Status | Активный агент(ы) | Тип |
 |--------|-------------------|-----|
-| Backlog | — (сырой интейк, агенты игнорят) | ожидание |
-| **Sprint** | — (буфер-обязательство; человек кладёт, оркестратор берёт отсюда) | ожидание/вход |
+| Backlog | — (заявка, интейк) | ожидание |
+| **Sprint** | — (человек кладёт в очередь: drag / `/sprint add`; analysis-lead забирает) | очередь |
 | Analysis | analyst + architect | активный [2] |
 | Ready for Dev | — (dev-lead берёт) | ожидание |
 | In Development | developer | активный |
@@ -178,15 +179,20 @@ kb_meta(){ local N="$1"; shift
     component=*) kb_text "$N" Component "${kv#component=}";;
   esac; done; }
 
-# --- issue в колонке Sprint (интейк-обязательство = вход оркестратора): number<TAB>title ---
-sprint_query(){ kb_dump | jq -r '.[] | select(.status=="Sprint") | "\(.number)\t\(.title)"'; }
+# --- очередь оркестратора = колонка Status=Sprint: sprint_queue → number<TAB>title ---
+sprint_queue(){ kb_dump | jq -r '.[] | select(.status=="Sprint") | "\(.number)\t\(.title)"'; }
 
-# --- рабочий набор оркестратора: всё кроме Backlog и Done (Sprint + in-flight): number<TAB>status<TAB>title ---
-board_work(){ kb_dump | jq -r '.[] | select(.status!=null and .status!="Backlog" and .status!="Done") | "\(.number)\t\(.status)\t\(.title)"'; }
+# --- положить issue в очередь / вернуть в интейк: kb_queue N add | kb_queue N remove ---
+kb_queue(){ local N="$1" OP="${2:-add}"
+  case "$OP" in
+    add|sprint)      kanban_set "$N" "Sprint"  ;;   # в очередь (= перетащить в колонку Sprint)
+    remove|backlog)  kanban_set "$N" "Backlog" ;;   # назад в интейк
+    *) echo "kb_queue: add|remove" >&2; return 1 ;;
+  esac; }
 
-# --- положить issue в спринт (=взять в работу) / вернуть в бэклог ---
-sprint_add(){ kanban_set "$1" "Sprint"; }       # человек коммитит задачу → оркестратор её увидит
-sprint_remove(){ kanban_set "$1" "Backlog"; }   # вернуть в интейк (снять с автопилота)
+# ⚠️ ЛЕГАСИ (удалены): current_sprint / sprint_query / kb_sprint — работали по полю `Sprint`.
+#    Модель именованных спринтов упразднена: очередь оркестратора = колонка `Status=Sprint`.
+#    Используй sprint_queue / kb_queue (выше) и kanban_set N "Sprint".
 ```
 
 ### Примеры
@@ -221,17 +227,16 @@ issue **не ставятся** — всё в поля.
 
 ### Роутинг при создании (авто-задачи)
 
-Новая issue по умолчанию попадает в `Backlog` (`kanban_set "$N" "Backlog"`). Но авто-задачи,
-блокирующие уже идущую работу, надо сразу взять в работу — иначе оркестратор их не увидит:
+Новая issue должна попасть в правильную колонку `Status`, иначе оркестратор её не увидит:
 
 - **Баг/регресс на задаче в работе** (создаёт security-reviewer / java-reviewer /
   frontend-reviewer при FAIL ревью; **test-case-writer** при провале AC на реальном стенде в Testing) →
-  **сразу в колонку Sprint**: `kanban_set "$N" "Sprint"`. Баг блокирует идущую задачу — чинится в
-  этом же прогоне; оркестратор возьмёт его из `Sprint` и доведёт до `Done`.
-- **Проактивный tech-debt** (postdeploy.sh / G9, ручные идеи) → **в `Backlog`** (`kanban_set "$N" "Backlog"`).
-  Не срочно — триаж рукой, человек сам решит, коммитить ли в `Sprint`.
-- Колонку `Sprint` двигают человек (обязательство) и авто-баг (детерминированно, т.к. блокирует
-  идущую работу) — не «домысел» оркестратора о том, что должно быть в спринте.
+  **сразу в очередь**: `kanban_set "$N" "Sprint"`.
+  Баг блокирует задачу — чинить в этом же прогоне (оркестратор подхватит из очереди `Sprint`).
+- **Проактивный tech-debt** (postdeploy.sh / G9, ручные идеи) → **в интейк**: `kanban_set "$N" "Backlog"`.
+  Триаж — вручную; человек перетащит в `Sprint`, когда возьмёт в работу.
+- Колонку `Sprint` (очередь) наполняет **человек** (drag на доске / `/sprint add`); авто-баг —
+  детерминированное исключение (наследует «в работе» у родителя), а не «домысел» оркестратора.
 
 ## ЗАПРЕЩЕНО
 

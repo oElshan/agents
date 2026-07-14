@@ -112,7 +112,7 @@ TICK (reconcile):
 | **HUMAN** | остались только prod-approve-pending | STOP + запрос `APPROVE PRODUCTION DEPLOY` |
 
 ### Progress signal
-`board_score = Σ stage_index(issue)` (индекс колонки, Backlog=0 · Sprint=1 … Done=9). Плюс продвижение
+`board_score = Σ stage_index(issue)` (индекс колонки, Backlog=0, Sprint=1 … Done=9). Плюс продвижение
 полей (`Security: pending→passed`). Тик сделал прогресс ⟺ score строго вырос ИЛИ поле
 продвинулось. Если прогресса нет `stall_rounds` тиков подряд и нет in-flight агентов → **STALL**.
 Это адаптация паттерна *loop-until-dry*: «dry» = нет прироста score.
@@ -222,8 +222,8 @@ Loop-бюджет (токены/тики/время) — **другое**, жи�
 
 | Стадия | Team Lead | Буфер (где ждут) |
 |---|---|---|
-| `analysis` | analysis-lead | `Sprint` (feature/epic) |
-| `develop` | dev-lead | Ready for Dev (+ dev-ready в `Sprint`) |
+| `analysis` | analysis-lead | Sprint (очередь) |
+| `develop` | dev-lead | Ready for Dev |
 | `testing` | qa-lead | Testing |
 | `deploy` | ops-lead | Ready to Deploy |
 

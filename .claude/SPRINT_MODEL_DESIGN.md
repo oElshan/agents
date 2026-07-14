@@ -104,9 +104,9 @@ dev-ready (`story`/`bug`/`tech-debt`/`hotfix`/`spike`) → dev-lead (`Sprint →
 | # | Файл | Что |
 |---|---|---|
 | 1 | `commands/setup-board.md` | опция `Sprint` в поле `Status` (после Backlog); поле `Sprint` больше не создаётся |
-| 2 | `agents/kanban-board-sync.md` | `Sprint` — Status-опция; убраны поле `Sprint`, `sprint`-ключ в `kb_dump`, хелперы `current_sprint/kb_sprint`; новые `sprint_add/remove/query`, `board_work` |
+| 2 | `agents/kanban-board-sync.md` | `Sprint` — Status-опция; убраны поле `Sprint`, `sprint`-ключ в `kb_dump`, хелперы `current_sprint`/`sprint_query`/`kb_sprint`; новые `sprint_queue`, `kb_queue` |
 | 3 | `project-profile.md` | убраны `current_sprint`/`sprint_model`/`sprint_carryover` |
-| 4 | `commands/orchestrate.md` | scope=sprint = колонка `Sprint` + in-flight; приём только из `Sprint`; board_score с Sprint=1; EMPTY = нет Sprint и нет in-flight |
+| 4 | `commands/orchestrate.md` | scope=board (дефолт) = активный пайплайн (`Sprint`…`Deploy`); scope=sprint = колонка `Sprint`; приём только из `Sprint`; board_score с Sprint=1; EMPTY = пайплайн пуст |
 | 5 | `commands/sprint.md` | управление колонкой `Sprint` (add/remove/list) |
 | 6 | `commands/board.md`, `commands/stage.md`, алиасы `pick/sweep/swarm` | scope и буферы по колонке `Sprint` |
 | 7 | `agents/quality-gates.md`, `agents/analysis-lead.md` | G1: `Sprint → Analysis`; G3: вход и из `Sprint` (dev-ready) |

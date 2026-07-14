@@ -141,9 +141,9 @@ orchestrator:
   pace_seconds: 1200        # сон при ожидании внешнего (человеческий APPROVE / общий idle); активный деплой опрашивается ~270с
   stop_on_human_gate: true  # prod-approve issue паркуются (Parked=human) и петля останавливается на них
   disabled_stages: []       # постоянно отключённые стадии (ставит /stage): analysis|develop|testing|deploy. Их агенты не запускаются, задачи ждут в буфере
-  # --- Спринтовая модель: спринт — это Status-КОЛОНКА `Sprint` (после Backlog), не поле. ---
-  # Оркестратор берёт НОВОЕ только из колонки Sprint, ведёт всё in-flight до Done, Backlog не трогает.
-  # Человек кладёт задачу в Sprint (перетаскиванием или /sprint add #N). Батчей/current_sprint нет.
+  # --- Очередь оркестратора = колонка Status=Sprint (НЕ поле Sprint). Кладёт человек: drag на доске / /sprint add ---
+  #     Оркестратор берёт задачи из колонки Sprint и гоняет по пайплайну до Done, лупит по кругу.
+  #     Именованные спринты (поле Sprint / current_sprint / sprint_model / sprint_carryover) упразднены.
 ```
 
 ---

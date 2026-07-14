@@ -74,13 +74,15 @@ git submodule update --init --recursive "$DIR"
 ```
 Это принесёт agents/commands/system/доки (framework — overwrite, accumulator — seed-if-absent),
 **не тронет** `project-profile.md`/`board.env`/`memory/` и **домёрджит недостающие ключи профиля**
-(`orchestrator.*`, `disabled_stages`) с дефолтами. (Спринт теперь — Status-колонка `Sprint`, не профильный ключ.)
+(`orchestrator.*`, `disabled_stages`) с дефолтами. Легаси `current_sprint`/`sprint_*` не добавляются
+(именованные спринты упразднены — очередь оркестратора = колонка `Status=Sprint`).
 
 ## ШАГ 4 — Доска
 
 Выполни логику `/setup-board` (см. `.claude/commands/setup-board.md`): создаст `board.env`, если
-его нет (ШАГ 0), и **идемпотентно** добавит недостающие поля, включая **Parked** и **Sprint**
-(существующие поля/данные не трогает). В `--dry-run` — только показать, чего не хватает.
+его нет (ШАГ 0), и **идемпотентно** добавит недостающие поля, включая **Parked** и колонку-очередь
+**Sprint** в поле `Status` (существующие поля/данные не трогает). В `--dry-run` — только показать,
+чего не хватает.
 
 ## ШАГ 5 — Профиль (проверка)
 
@@ -99,15 +101,15 @@ ADOPT {MIGRATION|FRESH} {COMPLETE|DRY-RUN} — {date}
 Framework: {url|path} @ {commit сабмодуля} → {DIR}
 
 Synced:        {N обновлено, M добавлено} (agents/commands/system/доки)
-Board fields:  +Parked +Sprint {или «уже были»}
-Profile keys:  +orchestrator.* {или «уже были»}
+Board fields:  +Parked {или «уже были»} · колонка-очередь Sprint в Status
+Profile keys:  +orchestrator.* {или «уже были»} (легаси sprint_* не добавляются)
 Preserved:     project-profile значения, board.env, memory/
 
 NEXT STEPS:
   {MIGRATION:}
   • /board — проверить доску
-  • /sprint add #N … — взять задачи в работу (колонка Sprint)
-  • /orchestrate dry-run — план автопилота по спринту
+  • положи задачи в очередь: перетащи карточки в колонку Sprint на доске или /sprint add #N
+  • /orchestrate dry-run — план автопилота по очереди
   • закоммить: git add .claude/ .gitmodules {DIR} && git commit -m "chore: подключить агентский фреймворк"
   {FRESH:}
   • /init — авто-детект стека + заполнить project-profile.md (стек не определялся)

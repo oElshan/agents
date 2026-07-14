@@ -31,7 +31,7 @@ Claude Code читает `<корень>/.claude/`, а сабмодуль жив
 | **Framework** (перезаписывать) | `agents/*.md`, `commands/*.md`, `system/sdc.md`, `system/postdeploy.sh`, `AGENTS_FRAMEWORK.md`, `*_DESIGN.md`, `DISTRIBUTION.md`, `board.env.example`, `memory/stories/_template.md` | overwrite — берём версию из источника |
 | **Accumulator** (засеять, если нет) | `system/budget.md`, `system/ownership-map.md` | seed-if-absent — копируем только если файла нет; заполненный НЕ трогаем |
 | **Project config** (никогда) | `project-profile.md`, `board.env`, `settings.json`, `settings.local.json`, `memory/` (кроме шаблонов) | preserve — не трогаем совсем |
-| **Profile keys** (мёрдж) | новые ключи в `project-profile.md` (`orchestrator.*`, `disabled_stages`) | merge — добавляем недостающие ключи с дефолтами, существующие значения НЕ меняем (спринт — Status-колонка, не ключ) |
+| **Profile keys** (мёрдж) | новые ключи в `project-profile.md` (`orchestrator.*`, `disabled_stages`; легаси `current_sprint`/`sprint_*` не добавляются — очередь = колонка `Status=Sprint`) | merge — добавляем недостающие ключи с дефолтами, существующие значения НЕ меняем |
 
 Профиль — особый случай: сам файл проект-специфичен (стек/команды/пороги), но при обновлении
 фреймворка в нём появляются **новые ключи**. Их надо добавить, не тронув проектные значения.

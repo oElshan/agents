@@ -7,14 +7,12 @@ Shared-протокол для Team Leads. При каждом переходе 
 Гейт срабатывает на границе между статусами. Полная карта — в `AGENTS_FRAMEWORK.md` → «Kanban Flow».
 
 ```
-Backlog ─(человек)→ Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
-                         G1        G2               G3               G4           G5        G6                G7       G8
+Backlog → Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
+       (человек)  G1        G2               G3               G4           G5        G6                G7       G8
 ```
 
-> `Backlog` = сырой интейк (агенты не берут). `Sprint` = взято в работу (человек кладёт рукой или
-> `/sprint add`). Переход `Backlog → Sprint` — это **действие человека**, не gate. Оркестратор
-> берёт новую работу ТОЛЬКО из `Sprint`; для `feature`/`epic` первый gate — G1 (`Sprint → Analysis`),
-> для dev-ready (`story`/`bug`/…) вход в пайплайн — G3 (`Sprint → In Development`).
+> `Backlog → Sprint` — не гейт: задачу в очередь `Sprint` кладёт **человек** (перетаскивание на
+> доске / `/sprint add`). Оркестратор берёт из `Sprint`; из `Backlog` не берёт никогда.
 
 | Gate | Переход | Enforcer | Активный агент справа |
 |------|---------|----------|-----------------------|
@@ -35,7 +33,7 @@ Backlog ─(человек)→ Sprint → Analysis → Ready for Dev → In Deve
 ### G1 — Sprint → Analysis
 
 **Enforcer:** analysis-lead
-**Transition:** Status: `Sprint` → `Analysis` (`kanban_set {N} "Analysis"`)
+**Transition:** Status: `Sprint` (очередь) → `Analysis` (`kanban_set {N} "Analysis"`)
 **Источник:** только `feature`/`epic` из колонки `Sprint` (взято в работу человеком). `Backlog` не трогаем — это интейк.
 **Активный агент справа:** analyst + architect (работают в статусе Analysis).
 
