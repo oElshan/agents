@@ -126,12 +126,12 @@
 | **security-reviewer** | sonnet | OWASP Top 10, AI-specific (prompt injection, RAG), JWT/RBAC, k8s-секреты. Delta-scope. Всегда. | — |
 | **java-reviewer** | sonnet | Java Senior + System Design. Architecture, JPA, Modern Java, Scalability, микросервисы, high-load. Если backend-delta. | — |
 | **frontend-reviewer** | sonnet | Angular/React ревью: архитектура, типизация, state, perf, a11y. Если frontend-delta. | — |
-| **test-case-writer** | sonnet | TC-документация из specs/arch. Cross-reference sync. Обновляет traceability-tc.md. | — |
+| **test-case-writer** | **opus** | QA-инженер: TC из AC + **прогон каждого AC по реальному стенду** (local_env.up/Testcontainers) + заведение багов на провалы + возврат story на доработку (петля). Cross-reference sync + traceability. | — |
 | **e2e-tester** | **opus** | Java Playwright + JUnit 5 + Page Object. Из TC-docs → E2E тесты в `e2e-tests/`. Только `/e2e` (ручной). | — |
 | **devops** | sonnet | Docker build, CI/CD pipeline, staging/production deploy, health checks, monitoring. | — |
 | **doc-sync** | sonnet | Traceability matrix. Spec↔code consistency. Запускается dev-lead после каждой разработки. | — |
 
-> **Модель-стратегия:** opus — где максимальное качество кода/дизайна (architect, developer, e2e-tester). sonnet — где скорость важнее (координация, review, тесты, deploy).
+> **Модель-стратегия:** opus — где максимальное качество/корректность (architect, developer, test-case-writer, e2e-tester). sonnet — где скорость важнее (координация, review, deploy).
 
 ---
 
@@ -157,7 +157,7 @@ Backlog → Analysis → Ready for Dev → In Development → Code Review → Te
 | **Ready for Dev** | — (буфер) | dev-lead берёт | Stories с spec + arch doc, ждут разработки |
 | **In Development** | developer | dev-lead | Реализация backend/frontend + unit-тесты |
 | **Code Review** | security + java + frontend reviewers `[2..3]` | dev-lead | OWASP/JWT/RBAC + Java/System Design/SDC + Angular/React, параллельно по delta |
-| **Testing** | test-case-writer | qa-lead | TC docs + верификация unit coverage |
+| **Testing** | test-case-writer | qa-lead | Прогон AC по реальному стенду + перепрогон автотестов + баги на провалы (петля) |
 | **Ready to Deploy** | — (буфер, prod-approve) | ops-lead | QA пройден, ждёт деплоя (prod — ждёт `APPROVE`) |
 | **Deploy** | devops | ops-lead | Build + деплой + health/smoke/rollback rehearsal |
 | **Done** | — (терминал) | — | Задеплоено, issue закрыт |
@@ -216,7 +216,7 @@ kanban_set N "<Status>"   # выставляет Status на доске; сам�
 | **G3** | Ready for Dev → In Development | dev-lead | **Тесты baseline OK** (`commands.backend.test` из профиля), AC testable (один G/W/T), deps resolved, WIP < quality.wip_limit, feature-ветка |
 | **G4** | In Development → Code Review | dev-lead | **Тесты SUCCESS** (`commands.backend.test` / `commands.frontend[].test`), story-ветка смёрджена в feature, handoff+coverage, чистый `git status`. Гейт «код готов к ревью» |
 | **G5** | Code Review → Testing | dev-lead | `Security=passed` + `JavaReview=passed/warning` (если backend-delta) + `FrontendReview=passed/warning` (если frontend-delta). Включает SDC Conformance. Все применимые reviewer'ы прошли |
-| **G6** | Testing → Ready to Deploy | qa-lead | Coverage ≥ quality.unit_coverage_min (default 95%; hotfix: ≥ quality.hotfix_coverage_min, default 50%), AC верифицированы тестами, TC docs созданы, поле `Security=passed` ОБЯЗАТЕЛЬНО |
+| **G6** | Testing → Ready to Deploy | qa-lead | **ВСЕ AC верифицированы на реальном стенде (evidence)** + автотесты перепрогнаны SUCCESS + coverage ≥ quality.unit_coverage_min (default 95%; hotfix ≥ 50%) + TC docs (living QA report) + `Security=passed`. Любой AC FAIL → баг + возврат в In Development (петля) |
 | **G7** | Ready to Deploy → Deploy | ops-lead | Pre-flight: `QA=passed` + `Security=passed` + build/tests green. Prod → человек постит `APPROVE PRODUCTION DEPLOY` |
 | **G8** | Deploy → Done | ops-lead | Tests green, health OK (`topology.services[].health` + `kubectl rollout status` для k8s), smoke OK, logs clean, поле `Deploy` выставлено, **rollback rehearsal на staging (`commands.deploy.rollback`) + kill switch проверен** |
 | **G9** | через 72ч после prod | `postdeploy.sh` (cron, без LLM) | Реальные метрики vs PROD AC из SDC #7. Расхождение → автоматический issue с полем `Type=tech-debt` |
@@ -396,22 +396,27 @@ qa-lead
   │     └── Security ≠ passed → BLOCKED: запросить /develop
   │     └── JavaReview = failed → BLOCKED: запросить /develop
   │
-  ├── test-case-writer (sonnet)
+  ├── test-case-writer (opus) — QA-инженер, реальная верификация
   │     ├── Читает spec + arch + issue AC + handoff
-  │     ├── Верифицирует unit coverage % из handoff (≥ quality.unit_coverage_min)
-  │     ├── docs/test-cases/feature-{N}-{name}.md
-  │     ├── Для каждого AC: happy path + error case + RBAC test
-  │     ├── Cross-reference sync: обновить Related TCs
-  │     └── Обновить docs/test-cases/traceability-tc.md
+  │     ├── Строит TC на каждый AC (happy + error + RBAC + negative)
+  │     ├── Поднимает СТЕНД: local_env.up (A) → Testcontainers (B) → degraded+флаг (C); ждёт health
+  │     ├── ПРОГОНЯЕТ каждый AC по живой системе (curl/REST): happy/RBAC 401-403/error 404-400/persistence
+  │     │     · microservices → graceful degradation + идемпотентность · high_load → пагинация/cap
+  │     ├── Перепрогоняет commands.backend.test ПО ФАКТУ (не число из handoff)
+  │     ├── Вердикт по каждому AC (Expected vs Actual + evidence)
+  │     ├── Провал → Bug issue (repro+evidence+Blocks:#N, спринт унаследован)
+  │     ├── docs/test-cases/feature-{N}-{name}.md как living QA report (Actual+Verdict) + traceability
+  │     └── Гасит стенд (local_env.down)
   │
   ├── G6: Testing → Ready to Deploy
+  │     ✓ ВСЕ AC verified PASS на реальном стенде (evidence) + автотесты SUCCESS + build green
   │     ✓ Coverage ≥ quality.unit_coverage_min подтверждён из handoff (hotfix: ≥ quality.hotfix_coverage_min)
-  │     ✓ TC docs созданы, AC верифицированы
-  │     ✓ Security=passed + JavaReview/FrontendReview=passed/warning (по применимости) ОБЯЗАТЕЛЬНЫ (выставлены на G5)
+  │     ✓ TC docs (living QA report) committed
+  │     ✓ Security=passed + JavaReview/FrontendReview=passed/warning (по применимости) ОБЯЗАТЕЛЬНЫ (G5)
   │     ✗ BLOCKED если применимое поле не выставлено или =failed
   │
   ├── PASS → kanban_set N "Ready to Deploy" + kb_set N QA passed
-  └── FAIL → kanban_set N "In Development" + kb_set N QA failed
+  └── FAIL (любой AC / build / тесты) → баги заведены → kb_set N QA failed + kanban_set N "In Development"  ← ПЕТЛЯ
 ```
 
 ### Deploy Flow (`/deploy staging`)
@@ -579,7 +584,7 @@ Requires: #10, #12, #15
 | `/feature <описание>` | analyst | Создаёт GitHub Issue с AC, приоритетом, размером |
 | `/analyze #N` | **analysis-lead** → analyst + architect | Декомпозиция → Stories + Spec + Architecture. Gates: G1, G2 |
 | `/develop #N [#M ...]` | **dev-lead** → developer(s) + reviewers (security/java/frontend по delta) | Реализация + code review. Gates: G3, G4, G5 |
-| `/test #N [all]` | **qa-lead** → test-case-writer | Верификация coverage + TC docs. Gate: G6 |
+| `/test #N [all]` | **qa-lead** → test-case-writer | Прогон AC по реальному стенду + баги на провалы + возврат на доработку. Gate: G6 |
 | `/deploy [staging\|production\|all]` | **ops-lead** → devops | Build → deploy (k8s/compose из профиля) → health check. Gates: G7, G8 |
 | `/e2e #N [all]` | **e2e-tester** | E2E автотесты из TC docs в `e2e-tests/` |
 
@@ -734,6 +739,8 @@ qa-lead          → дописывает раздел ✅ QA (~150 токено
 | Memory | security-reviewer | `.claude/memory/stories/story-{N}.md` (раздел 🔒) |
 | Memory | java-reviewer + frontend-reviewer | `.claude/memory/stories/story-{N}.md` (раздел ☕) |
 | Memory | qa-lead | `.claude/memory/stories/story-{N}.md` (раздел ✅) |
+| QA | test-case-writer | Comment в issue: QA Test Execution Report (per-AC verdict + evidence) |
+| QA | test-case-writer | Bug issues (Type=bug) на каждый провалившийся AC при FAIL |
 | Security | security-reviewer | Comment в issue: Security Review Report |
 | Security | security-reviewer | Bug issues (Type=bug, Priority=critical) при FAIL |
 | Java Review | java-reviewer | Comment в issue: Java + System Design Review Report |
@@ -788,7 +795,7 @@ qa-lead          → дописывает раздел ✅ QA (~150 токено
 │   │   — Team Leads —
 │   ├── analysis-lead.md         # [sonnet] Координирует analyst + architect. G1, G2.
 │   ├── dev-lead.md              # [sonnet] Координирует developer(s) + reviewers. G3, G4, G5.
-│   ├── qa-lead.md               # [sonnet] Координирует test-case-writer. G6.
+│   ├── qa-lead.md               # [sonnet] Координирует test-case-writer (реальная верификация + петля). G6.
 │   ├── ops-lead.md              # [sonnet] Координирует devops. G7, G8.
 │   │   — Рабочие агенты —
 │   ├── analyst.md               # [sonnet] Декомпозиция, спецификации, Status на доске
@@ -797,7 +804,7 @@ qa-lead          → дописывает раздел ✅ QA (~150 токено
 │   ├── security-reviewer.md     # [sonnet] OWASP, AI-specific, JWT/RBAC, k8s-секреты. Всегда в Code Review.
 │   ├── java-reviewer.md         # [sonnet] Java Senior + System Design + микросервисы. Если backend-delta.
 │   ├── frontend-reviewer.md     # [sonnet] Angular/React ревью. Если frontend-delta.
-│   ├── test-case-writer.md      # [sonnet] TC-документация. Cross-reference sync.
+│   ├── test-case-writer.md      # [opus]   QA-инженер: прогон AC по реальному стенду + баги + петля. TC + cross-ref.
 │   ├── e2e-tester.md            # [opus]   Java Playwright E2E. Только /e2e.
 │   ├── devops.md                # [sonnet] k8s/compose deploy, CI/CD, monitoring
 │   ├── doc-sync.md              # [sonnet] Traceability matrix. Spec↔code consistency.

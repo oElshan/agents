@@ -272,9 +272,9 @@ Agent(subagent_type="qa-lead"[, run_in_background=true], prompt="ORCHESTRATE —
 Read .claude/project-profile.md, CLAUDE.md, ARCHITECTURE.md (if exists).
 Issues (test): {список}. Пропусти BLOCKED (deps).
 Per issue pre-flight: kb_get N Security==passed (иначе BLOCKED — Testing остаётся, comment); coverage из .claude/handoffs/story-N-dev.md >= quality.unit_coverage_min; build green.
-Per issue (pre-flight OK) — ПАРАЛЛЕЛЬНО: test-case-writer (TC docs + cross-ref) + e2e-tester (Playwright+JUnit5+POM, compile+run). НЕ unit-тесты (это developer), НЕ security (это Code Review).
-G6: PASS → kb_set N QA passed (+ kb_num N Coverage) + kanban_set N 'Ready to Deploy'. FAIL → kb_set N QA failed + Bug issue + kanban_set N 'In Development'. WIP=quality.wip_limit.
-Стадию — ТОЛЬКО kanban_set. Report: PASSED/FAILED/BLOCKED.")
+Per issue (pre-flight OK): test-case-writer (QA-инженер) — TC из AC → поднять реальный стенд (commands.local_env.up → иначе commands.backend.integration_test/Testcontainers → иначе degraded с флагом) → ПРОГНАТЬ каждый AC по живой системе (curl/REST: happy/RBAC 401-403/error/persistence; microservices → graceful degradation+идемпотентность; high_load → пагинация) → перепрогнать commands.backend.test ПО ФАКТУ → завести Bug issue на КАЖДЫЙ провалившийся AC (repro+Expected+Actual(evidence)+Blocks:#N, kb_sprint наследует спринт) → living QA report + traceability. НЕ unit-тесты (developer), НЕ security (Code Review), НЕ UI E2E (отдельный /e2e).
+G6: PASS (ВСЕ AC verified PASS + автотесты SUCCESS + build green) → kb_set N QA passed (+ kb_num N Coverage) + kanban_set N 'Ready to Deploy'. FAIL (любой AC FAIL / build/тесты сломаны) → баги заведены тестировщиком, kb_set N QA failed + kanban_set N 'In Development' (петля). WIP=quality.wip_limit.
+Стадию — ТОЛЬКО kanban_set. Report: per issue — stand level (A/B/C), {pass}/{total} AC, autotests, VERDICT, bugs filed.")
 ```
 
 ### DEV (In Development + Ready for Dev)

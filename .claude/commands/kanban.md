@@ -34,7 +34,7 @@ argument-hint: "<описание фичи или #N существующего 
 **Разделение ответственности:**
 - **developer** (ЭТАП 3): код + unit тесты (coverage >= quality.unit_coverage_min из профиля, default 95%) — G4 gate (In Development → Code Review)
 - **security-reviewer + java-reviewer + frontend-reviewer (по delta)** (ЭТАП 3, статус Code Review): review — G5 gate (Code Review → Testing)
-- **qa-lead** (ЭТАП 4): TC документация — G6 gate. E2E — отдельный ручной процесс (`/e2e`)
+- **qa-lead** (ЭТАП 4): реальная верификация AC на стенде + баги на провалы + возврат на доработку — G6 gate. UI E2E — отдельный ручной процесс (`/e2e`)
 - **ops-lead** (ЭТАП 5): G7 (Ready to Deploy → Deploy) + G8 (Deploy → Done)
 
 **Quality Gates**: G1 → G2 → G3 → G4 → G5 → G6 → G7 → G8 (см. `.claude/agents/quality-gates.md`)
@@ -128,38 +128,42 @@ Report: branches, files changed, build status per story.")
 
 ## ЭТАП 4 — Testing (QA Team Lead)
 
-Используй **qa-lead** — он координирует test-case-writer(ов) (sonnet).
+Используй **qa-lead** — он координирует test-case-writer(ов) (QA-инженер, opus): **реальная верификация**, не документация.
 Unit тесты уже написаны developer на ЭТАПЕ 3. Security + Java/Frontend review (по delta) уже пройдены в статусе Code Review (G5).
 Stories в колонке Status="Testing".
-**E2E автотесты — отдельный ручной процесс через `/e2e`.**
+**UI E2E автотесты — отдельный ручной процесс через `/e2e`.**
 
 ```
-Agent(subagent_type="qa-lead", prompt="Test ALL stories for feature #{N}.
+Agent(subagent_type="qa-lead", prompt="Verify ALL stories for feature #{N} on a real stand.
 Stories: #{s1}, #{s2}, #{s3} (all in Status=Testing).
-Read .claude/project-profile.md FIRST (thresholds from quality.*; if initialized: false — run its Fallback Detect), then CLAUDE.md and ARCHITECTURE.md (if exists).
+Read .claude/project-profile.md FIRST (commands.*, stack.data.*, topology.services[], quality.*; if initialized: false — run its Fallback Detect), then CLAUDE.md and ARCHITECTURE.md (if exists).
 
-Run your team — for EACH story spawn test-case-writer:
-  test-case-writer (sonnet):
-  - TC documentation from spec/arch docs (docs/test-cases/feature-{N}-{name}.md)
-  - Priority: Critical/High/Medium/Low + E2E Automated flag (Planned)
-  - Cross-reference sync with related TCs
+Run your team — for EACH story spawn test-case-writer (QA verification):
+  test-case-writer (opus):
+  - TC из каждого AC (happy + error/edge + RBAC + negative), cross-reference sync
+  - Поднять РЕАЛЬНЫЙ стенд: commands.local_env.up (A) → commands.backend.integration_test/Testcontainers (B) → degraded с флагом (C); дождаться health
+  - ПРОГНАТЬ каждый AC по живой системе (curl/REST): happy/RBAC 401-403/error 404-400/persistence; microservices → graceful degradation+идемпотентность; high_load → пагинация
+  - Перепрогнать commands.backend.test ПО ФАКТУ (не число из handoff)
+  - Вердикт по каждому AC (Expected vs Actual + evidence); living QA report в docs/test-cases/ + traceability
+  - На каждый провал — Bug issue (repro+Expected+Actual(evidence)+Blocks:#{story}, спринт унаследован)
 
-E2E автотесты НЕ входят в QA pipeline. Запускать отдельно: /e2e #{N}
+UI E2E НЕ входит в QA-петлю. Запускать отдельно: /e2e #{N}
 
-Verify (do NOT write — developer already did):
+Verify (do NOT write unit tests — developer already did; re-run and confirm green):
+  - ВСЕ AC verified PASS on real stand (with evidence) + автотесты re-run SUCCESS + build green
   - Unit coverage >= quality.unit_coverage_min (default 95%) confirmed from developer handoff (.claude/handoffs/story-{N}-dev.md)
   - kb_get {story} Security == passed (set by dev-lead). If not → BLOCKED.
   - JavaReview / FrontendReview in {passed,warning} where applicable (by delta); non-applicable field stays pending = N/A.
 
 Collect results:
-- PASSED: kanban_set {story} "Ready to Deploy" + kb_set {story} QA passed
-- FAILED: kanban_set {story} "In Development" + kb_set {story} QA failed + create Bug issue
+- PASSED (все AC verified + автотесты SUCCESS): kanban_set {story} "Ready to Deploy" + kb_set {story} QA passed
+- FAILED (любой AC FAIL / build/тесты сломаны): баги заведены тестировщиком; kb_set {story} QA failed + kanban_set {story} "In Development" ← петля
 - BLOCKED (Security != passed): keep Status=Testing, request dev-lead security review
 
-Quality Gate G6: TC docs created, Security == passed, JavaReview/FrontendReview passed/warning по применимости, unit coverage >= quality.unit_coverage_min confirmed from handoff.
-Менять стадию ТОЛЬКО через kanban_set (доска — источник правды).
+Quality Gate G6: ВСЕ AC верифицированы на стенде (evidence), автотесты SUCCESS, TC docs (living QA report) created, Security == passed, JavaReview/FrontendReview passed/warning по применимости, unit coverage >= threshold from handoff.
+Менять Status ТОЛЬКО через kanban_set; поле QA — через kb_set (доска — источник правды). Баги заводит тестировщик.
 
-Report: pass/fail per story, TC count, security status.")
+Report: pass/fail per story — stand level, {pass}/{total} AC verified, autotests, bugs filed.")
 ```
 
 **Только если ВСЕ stories прошли → переходи к ЭТАПУ 5.**

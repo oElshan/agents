@@ -22,4 +22,4 @@ updated: ""         # YYYY-MM-DD
 <!-- ~150 токенов: вердикты по backend/frontend delta, tech-debt warnings -->
 
 ## ✅ QA (qa-lead)
-<!-- ~150 токенов: coverage %, TC docs, вердикт G6 -->
+<!-- ~150 токенов: stand level (A/B/C), {pass}/{total} AC verified на стенде, autotests SUCCESS/FAILED, coverage %, TC docs, вердикт G6 (PASS/FAIL + bugs #) -->

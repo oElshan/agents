@@ -142,23 +142,25 @@ Verdict: **PASS** (Security=passed И все применимые Review ∈ {pa
 
 **Enforcer:** qa-lead
 **Transition:** Status: `Testing` → `Ready to Deploy` (`kanban_set {N} "Ready to Deploy"`)
+**Активный агент справа:** test-case-writer (QA-инженер) — **прогоняет AC по реальному стенду**, не только пишет TC.
 
 Checklist:
-- [ ] **TC документация создана**: `docs/test-cases/feature-{N}-{name}.md` exists и committed
-- [ ] Все AC из issue покрыты TC документами (каждый Given/When/Then → минимум 1 TC)
-- [ ] **Unit coverage ≥ quality.unit_coverage_min (default 95%)** подтверждена из developer handoff `.claude/handoffs/story-{N}-dev.md` (qa-lead читает coverage-отчёт из `commands.backend.coverage`, не запускает). Для `Type=hotfix` — порог quality.hotfix_coverage_min (default 50%).
+- [ ] **ВСЕ AC верифицированы на реальном стенде** — тестировщик поднял стенд (local_env.up / Testcontainers / degraded) и вернул вердикт по каждому AC с **evidence** (реальный HTTP-ответ, код статуса, состояние БД через GET, фрагмент лога). Итог = PASS только если все AC = PASS.
+- [ ] **Автотесты перепрогнаны зелёными по факту**: реальный вывод `commands.backend.test` (microservices → `test_one_service`) = SUCCESS. Не «число из handoff», а перепрогон.
+- [ ] **Уровень стенда зафиксирован** (A live / B testcontainers / C degraded). C — не блокер, но фиксируется как пониженный confidence.
+- [ ] **TC документация создана и обновлена фактом прогона**: `docs/test-cases/feature-{N}-{name}.md` exists, committed, содержит Actual+Verdict (living QA report). Каждый Given/When/Then → минимум 1 TC.
+- [ ] **Unit coverage ≥ quality.unit_coverage_min (default 95%)** подтверждена из developer handoff `.claude/handoffs/story-{N}-dev.md`. Для `Type=hotfix` — порог quality.hotfix_coverage_min (default 50%).
 - [ ] **Поле `Security` = `passed`** (выставлено security-reviewer на G5; `kb_get {N} Security`). Если не `passed` → **BLOCKED**. **НИКОГДА не выставлять Security самостоятельно — это поле security-reviewer/dev-lead.**
-- [ ] **Поля `JavaReview`/`FrontendReview` ∈ {`passed`, `warning`} по применимости delta** (см. G5); неприменимые остаются `pending` — «N/A» в Gate Report dev-lead, это не блокер. `failed` → **BLOCKED**.
-- [ ] Поле `QA` ≠ `failed` (`kb_get {N} QA`)
+- [ ] **Поля `JavaReview`/`FrontendReview` ∈ {`passed`, `warning`} по применимости delta** (см. G5); неприменимые остаются `pending` — «N/A», не блокер. `failed` → **BLOCKED**.
+- [ ] На **каждый провалившийся AC заведён Bug issue** (если были провалы): repro + Expected + Actual(evidence) + `Blocks: #{N}`, спринт унаследован. Поле `QA` ≠ `failed` для PASS.
 
 **G6 НЕ требует (сделано в других этапах или отдельных процессах):**
-- Unit tests → написаны developer, проверены на G4 (не QA ответственность)
+- Написания unit tests → developer написал (G4); QA только перепрогоняет
 - Security / Java review → выполнены на G5 (Code Review); QA только читает поля
-- Integration tests → ответственность developer (базовый интеграционный test-класс проекта, если есть)
 - Load tests → отдельный performance cycle
-- **E2E тесты → отдельный ручной процесс через `/e2e`. НЕ блокируют G6.**
+- **UI E2E тесты → отдельный ручной процесс через `/e2e`. НЕ блокируют G6.**
 
-Verdict: **PASS** (→ `kb_set {N} QA passed` + `kb_num {N} Coverage <pct>`) | **NEEDS WORK** (TC docs неполные — исправь) | **BLOCKED** (QA=failed / Security≠passed)
+Verdict: **PASS** (все AC верифицированы + автотесты SUCCESS + build зелёный → `kb_set {N} QA passed` + `kb_num {N} Coverage <pct>` → `Ready to Deploy`) | **FAIL** (провал AC / build/тесты сломаны → баги заведены тестировщиком → `kb_set {N} QA failed` → `In Development`, **петля замыкается**) | **BLOCKED** (Security≠passed / применимый Review=failed → остаётся Testing)
 
 ---
 
