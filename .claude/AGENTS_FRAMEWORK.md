@@ -14,7 +14,7 @@
 - **Team Leads** (analysis-lead, dev-lead, qa-lead, ops-lead) — координируют свою фазу, валидируют output, держат WIP-лимиты, делают Quality Gate.
 - **Рабочие агенты** (analyst, architect, developer, security-reviewer, java-reviewer, frontend-reviewer, test-case-writer, devops, e2e-tester) — выполняют конкретную работу.
 
-**Поток.** Issue идёт по колонкам: `Backlog → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done`. **Каждый статус = активный агент** (agent-per-status) — доска показывает, кто именно сейчас держит задачу; два статуса держат группу агентов (Analysis: analyst+architect; Code Review: security + java + frontend reviewers — по delta). Каждое перетаскивание = Quality Gate (G1..G8). Через 72 часа после прод-деплоя — G9: cron-скрипт сверяет реальные метрики с тем, что обещали в spec.
+**Поток.** Issue идёт по колонкам: `Backlog → Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done`. `Backlog` — сырой интейк (агенты не берут); `Sprint` — взято в работу (человек кладёт рукой или `/sprint add`), и оркестратор берёт новую работу ТОЛЬКО отсюда. **Каждый статус = активный агент** (agent-per-status) — доска показывает, кто именно сейчас держит задачу; два статуса держат группу агентов (Analysis: analyst+architect; Code Review: security + java + frontend reviewers — по delta). Каждое перетаскивание = Quality Gate (G1..G8). Через 72 часа после прод-деплоя — G9: cron-скрипт сверяет реальные метрики с тем, что обещали в spec.
 
 **Управление человеком.** Через slash-команды:
 - `/feature <описание>` — создать Feature Request
@@ -23,8 +23,8 @@
 - `/test #N` — написать TC-документацию
 - `/deploy staging` / `/deploy production` — задеплоить
 - `/kanban <описание>` — полный пайплайн одной командой (всё выше подряд)
-- `/sprint add #N` — утвердить задачу в текущий спринт (оркестратор работает только по спринту)
-- `/orchestrate` — **автопилот**: замкнутая петля сама крутит текущий спринт до готовности (человек больше не «петля»)
+- `/sprint add #N` — взять задачу в работу (положить в колонку `Sprint`; оркестратор берёт новое только оттуда)
+- `/orchestrate` — **автопилот**: замкнутая петля сама ведёт колонку `Sprint` + всё in-flight до готовности (человек больше не «петля»)
 - `/stage off deploy` — поставить стадию на паузу (0 токенов; задачи ждут в буфере)
 - `/board` — посмотреть состояние доски, WIP, блокировки
 
@@ -111,7 +111,7 @@
 
 | Агент | Команда | Kanban-переход | Gates |
 |-------|---------|----------------|-------|
-| **analysis-lead** | analyst + architect | Backlog → Analysis → Ready for Dev | G1, G2 |
+| **analysis-lead** | analyst + architect | Sprint → Analysis → Ready for Dev | G1, G2 |
 | **dev-lead** | developer(s) + security-reviewer + java-reviewer + frontend-reviewer + doc-sync | Ready for Dev → In Development → Code Review → Testing | G3, G4, G5 |
 | **qa-lead** | test-case-writer(s) | Testing → Ready to Deploy | G6 |
 | **ops-lead** | devops | Ready to Deploy → Deploy → Done | G7, G8 |
@@ -146,13 +146,15 @@
 (Ready for Dev, Ready to Deploy) — буферы между Team Lead'ами; в них активного агента нет.
 
 ```
-Backlog → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
-        G1        G2               G3               G4           G5        G6                G7       G8
+Backlog ─(человек)→ Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
+                         G1        G2               G3               G4           G5        G6                G7       G8
 ```
+`Backlog` = интейк (агенты игнорят). `Backlog → Sprint` — действие человека («взять в работу»), не gate.
 
 | Status | Активный агент(ы) | Team Lead | Что здесь |
 |--------|-------------------|-----------|-----------|
-| **Backlog** | — (заявка) | analysis-lead | Новые фичи, баги, идеи |
+| **Backlog** | — (сырой интейк, агенты игнорят) | — | Новые фичи, баги, идеи — рефайнинг рукой |
+| **Sprint** | — (буфер-обязательство) | человек кладёт → оркестратор берёт | Взято в работу; вход оркестратора (feature→Analysis, dev-ready→In Dev) |
 | **Analysis** | analyst + architect `[2]` | analysis-lead | Декомпозиция + проектирование (spec + arch) |
 | **Ready for Dev** | — (буфер) | dev-lead берёт | Stories с spec + arch doc, ждут разработки |
 | **In Development** | developer | dev-lead | Реализация backend/frontend + unit-тесты |
@@ -211,7 +213,7 @@ kanban_set N "<Status>"   # выставляет Status на доске; сам�
 
 | Gate | Переход | Enforcer | Ключевые проверки |
 |------|---------|----------|-------------------|
-| **G1** | Backlog → Analysis | analysis-lead | Business value, AC, дубликаты, тип, приоритет |
+| **G1** | Sprint → Analysis | analysis-lead | Business value, AC, дубликаты, тип, приоритет (feature/epic из колонки Sprint) |
 | **G2** | Analysis → Ready for Dev | analysis-lead | Spec (FR+NFR+Given/When/Then), SD-1..SD-5, **SDC: 8 слотов заполнены/N/A**, arch doc, INVEST, budget-threshold→ADR |
 | **G3** | Ready for Dev → In Development | dev-lead | **Тесты baseline OK** (`commands.backend.test` из профиля), AC testable (один G/W/T), deps resolved, WIP < quality.wip_limit, feature-ветка |
 | **G4** | In Development → Code Review | dev-lead | **Тесты SUCCESS** (`commands.backend.test` / `commands.frontend[].test`), story-ветка смёрджена в feature, handoff+coverage, чистый `git status`. Гейт «код готов к ревью» |
@@ -305,7 +307,7 @@ kanban_set N "<Status>"   # выставляет Status на доске; сам�
 ```
 analysis-lead
   │
-  ├── G1: Backlog → Analysis
+  ├── G1: Sprint → Analysis   (feature/epic, взятые человеком в колонку Sprint; Backlog не трогаем)
   │     ✓ Business value, AC, дубликаты, тип, приоритет
   │
   ├── [ПАРАЛЛЕЛЬНО]
@@ -404,7 +406,7 @@ qa-lead
   │     │     · microservices → graceful degradation + идемпотентность · high_load → пагинация/cap
   │     ├── Перепрогоняет commands.backend.test ПО ФАКТУ (не число из handoff)
   │     ├── Вердикт по каждому AC (Expected vs Actual + evidence)
-  │     ├── Провал → Bug issue (repro+evidence+Blocks:#N, спринт унаследован)
+  │     ├── Провал → Bug issue (repro+evidence+Blocks:#N) → сразу в колонку Sprint (блокирует идущую работу)
   │     ├── docs/test-cases/feature-{N}-{name}.md как living QA report (Actual+Verdict) + traceability
   │     └── Гасит стенд (local_env.down)
   │
@@ -536,7 +538,7 @@ Requires: #10, #12, #15
 
 | Поле | Тип | Значения | Заменяло лейбл | Пишет |
 |------|-----|----------|----------------|-------|
-| **Status** | single-select | 9 стадий (agent-per-status) | стадию | Team Lead (`kanban_set`) |
+| **Status** | single-select | 10 стадий (agent-per-status); `Sprint` = взято в работу | стадию | Team Lead (`kanban_set`); человек кладёт в `Sprint` |
 | **Type** | single-select | feature, epic, story, bug, tech-debt, hotfix, spike | `type:*` | analyst |
 | **Priority** | single-select | critical, high, medium, low | `priority:*` | analyst |
 | **Size** | single-select | xs, s, m, l, xl | `size:*` | analyst |
@@ -548,7 +550,9 @@ Requires: #10, #12, #15
 | **Deploy** | single-select | none, staging, production | `deployed:*` | devops |
 | **Coverage** | number | % покрытия | (текст в `qa:passed`) | qa-lead |
 | **Parked** | single-select | no, deps, human, oscillation, budget | — (новое) | **оркестратор** (`/orchestrate`) |
-| **Sprint** | single-select | (пусто)=бэклог, `Sprint 1`, … | — (новое) | **человек** (`/sprint` / доска) |
+
+> **Спринт — это опция поля `Status` (колонка `Sprint` после `Backlog`), а не отдельное поле.**
+> Человек кладёт задачу в `Sprint` (перетаскиванием или `/sprint add`) — это gate приёма в работу.
 
 Установка: `kb_meta N type=story priority=high size=m component=backend,infra`,
 `kb_set N Security passed`, `kb_num N Coverage 96`. Чтение: `kb_get N Security`.
@@ -594,7 +598,7 @@ Requires: #10, #12, #15
 |---------|------------|
 | `/orchestrate [once\|swarm\|<колонка>\|#N\|dry-run]` | **Единый оркестратор** — замкнутая петля над доской до остановки (drained/stall/budget/human/held). `/orchestrate` без аргумента = автопилот continuous. Ядро для трёх алиасов ниже |
 | `/stage [off\|on <стадия…>]` | Пауза/возобновление стадий (analysis\|develop\|testing\|deploy). Отключённая = не запускается (0 токенов), задачи ждут в буфере. Без аргумента — статус |
-| `/sprint [new\|activate\|add #N\|remove\|close]` | Спринты: утверждение задач для оркестратора. `/sprint add #N` — положить задачу в текущий спринт. Оркестратор работает ТОЛЬКО по текущему спринту, бэклог не трогает |
+| `/sprint [add #N\|remove #N\|list]` | Спринт = колонка `Status`. `/sprint add #N` — взять задачу в работу (положить в колонку `Sprint`). Оркестратор берёт новое ТОЛЬКО из `Sprint`, `Backlog` не трогает |
 | `/kanban <описание>` | Полный pipeline: Feature → Analysis → Develop → Test → Deploy (гейты G1–G8) |
 | `/swarm [develop\|test\|analyze\|dry-run]` | **Алиас** `/orchestrate` — один проход, все Team Leads ПАРАЛЛЕЛЬНО |
 | `/sweep [колонка\|dry-run]` | **Алиас** `/orchestrate` — один проход right-to-left, последовательно |
@@ -617,12 +621,13 @@ Requires: #10, #12, #15
 вызов**, а повторение запускал человек. Теперь это одна **замкнутая петля**, а те три команды —
 её пресеты (обратная совместимость сохранена).
 
-**Спринт-скоуп (главное).** Оркестратор работает **только по текущему спринту** и **никогда**
-не берёт из бэклога. Множество работы = issue на доске с `Sprint == orchestrator.current_sprint`,
-считанное из живого `kb_dump` каждый тик — по факту, без домыслов. Задача попадает под автопилот,
-когда человек кладёт её в спринт (перетаскиванием на доске или `/sprint add`); как именно —
-оркестратору безразлично, он читает только поле `Sprint`. Нет задач в спринте → ничего не делает
-(стоп-причина `EMPTY`). Планирование спринтов — команда `/sprint`, модель — `.claude/SPRINT_MODEL_DESIGN.md`.
+**Спринт-скоуп (главное).** Спринт — это **Status-колонка `Sprint`** (после `Backlog`), не поле.
+Оркестратор **берёт НОВОЕ в работу только из колонки `Sprint`**, ведёт всё in-flight
+(`Analysis`…`Deploy`) до `Done` и **никогда не трогает `Backlog`** (сырой интейк). Рабочее
+множество = issue со `Status ∈ {Sprint, Analysis…Deploy}`, считанное из живого `kb_dump` каждый
+тик — по факту, без домыслов. Задача попадает под автопилот, когда человек кладёт её в колонку
+`Sprint` (перетаскиванием или `/sprint add`). Нет задач в `Sprint` и нет in-flight → ничего не
+делает (стоп-причина `EMPTY`). Планирование — команда `/sprint`, модель — `.claude/SPRINT_MODEL_DESIGN.md`.
 
 **Петля (reconcile tick):**
 ```
@@ -670,8 +675,8 @@ APPROVE; `oscillation` снимает только человек.
 
 | Стадия | Team Lead (не запускается) | Задачи ждут в |
 |---|---|---|
-| `analysis` | analysis-lead | Backlog |
-| `develop` | dev-lead | Ready for Dev |
+| `analysis` | analysis-lead | `Sprint` (feature/epic) |
+| `develop` | dev-lead | Ready for Dev (+ dev-ready в `Sprint`) |
 | `testing` | qa-lead | Testing |
 | `deploy` | ops-lead | Ready to Deploy |
 

@@ -49,12 +49,12 @@ argument-hint: "<описание фичи или #N существующего 
 2. Проверь дубликаты в GitHub Issues
 3. Создай Feature Request Issue (без лейблов — всё в поля доски):
    - Title: `[FEATURE] {name}`
-   - Стадия: `kanban_set {N} "Backlog"` (доска — источник правды о стадии)
+   - Стадия: `kanban_set {N} "Sprint"` — `/kanban` явно берёт фичу в работу (это full-pipeline команда человека, эквивалент `/sprint add`; поэтому сразу в колонку `Sprint`, а не в `Backlog`)
    - Метаданные: `kb_meta {N} type=feature priority={level} size={est} component={type}`
    - Body: бизнес-ценность, user scenarios, acceptance criteria
 4. Определи приоритет и размер
 
-**Quality Gate G1**: бизнес-ценность определена, AC есть, дубликатов нет.
+**Quality Gate G1** (`Sprint → Analysis`): бизнес-ценность определена, AC есть, дубликатов нет.
 
 **Жди завершения перед следующим этапом.**
 
@@ -145,7 +145,7 @@ Run your team — for EACH story spawn test-case-writer (QA verification):
   - ПРОГНАТЬ каждый AC по живой системе (curl/REST): happy/RBAC 401-403/error 404-400/persistence; microservices → graceful degradation+идемпотентность; high_load → пагинация
   - Перепрогнать commands.backend.test ПО ФАКТУ (не число из handoff)
   - Вердикт по каждому AC (Expected vs Actual + evidence); living QA report в docs/test-cases/ + traceability
-  - На каждый провал — Bug issue (repro+Expected+Actual(evidence)+Blocks:#{story}, спринт унаследован)
+  - На каждый провал — Bug issue (repro+Expected+Actual(evidence)+Blocks:#{story}, сразу в колонку Sprint)
 
 UI E2E НЕ входит в QA-петлю. Запускать отдельно: /e2e #{N}
 

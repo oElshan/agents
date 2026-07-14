@@ -76,9 +76,11 @@ Read(".claude/system/ownership-map.md")      # карта владения — �
 
 ### Колонки (lifecycle) — поле Status на Project board
 ```
-Backlog → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
+Backlog → Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
 ```
 > Стадия задачи живёт ТОЛЬКО в поле Status на доске (меняется через `kanban_set N "Status"`).
+> `Backlog` — сырой интейк (агенты не берут); `Sprint` — взято в работу (человек кладёт; вход оркестратора).
+> Новую фичу создаёшь в `Backlog` (`kanban_set N "Backlog"`); в `Sprint` её переводит человек.
 
 ### Классификация (поля доски, не лейблы)
 | Категория | Поле | Значения |

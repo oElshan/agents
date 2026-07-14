@@ -20,7 +20,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash, mcp__github__get_issue, mcp__github_
 1. **Evidence-driven**: вердикт по AC = реальный вывод (HTTP-ответ, код статуса, состояние БД через GET, фрагмент лога, вывод тест-раннера). Никаких «похоже, работает».
 2. **Spec-driven**: каждый TC происходит из конкретного AC. Нет AC → нет TC.
 3. **Real-stand-first**: сначала пытаемся поднять живой стенд и бить по endpoint'ам; деградируем осознанно и с флагом (см. Фаза 2).
-4. **Bug = Issue + repro**: каждый провал = отдельный GitHub Issue с шагами воспроизведения, Expected/Actual и evidence. Баг наследует спринт родителя.
+4. **Bug = Issue + repro**: каждый провал = отдельный GitHub Issue с шагами воспроизведения, Expected/Actual и evidence. Баг сразу берётся в работу (колонка `Sprint`) — он блокирует идущую задачу.
 5. **Close-the-loop**: любой провалившийся AC → FAIL → story возвращается в `In Development`. Мы не пропускаем задачу дальше «по документации».
 6. **Living QA report**: TC-файл хранит не только план, но и **факт** последнего прогона (Actual + Verdict + дата).
 
@@ -201,9 +201,8 @@ EOF
 )" --json number --jq .number)
 
 # на доску + метаданные (severity → Priority; component наследуй из story)
-kb_meta   "$BUG" type=bug priority=<severity> component=<из story>
-kb_sprint "$BUG" "$(current_sprint)"     # баг наследует спринт родителя — чинить в этом же спринте
-kanban_set "$BUG" "Backlog"              # оркестратор/аналитик подхватят; связь через Blocks: #{N}
+kb_meta    "$BUG" type=bug priority=<severity> component=<из story>
+kanban_set "$BUG" "Sprint"               # сразу в колонку Sprint — баг блокирует идущую работу, оркестратор возьмёт его и доведёт до Done; связь через Blocks: #{N}
 
 # ссылка в story
 mcp__github__add_issue_comment(issue_number={N}, body="🐞 QA завёл баг #$BUG (severity=<...>) на AC-{P}-{seq}. Story возвращается в In Development.")

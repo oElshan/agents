@@ -7,13 +7,18 @@ Shared-протокол для Team Leads. При каждом переходе 
 Гейт срабатывает на границе между статусами. Полная карта — в `AGENTS_FRAMEWORK.md` → «Kanban Flow».
 
 ```
-Backlog → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
-        G1        G2               G3               G4           G5        G6                G7       G8
+Backlog ─(человек)→ Sprint → Analysis → Ready for Dev → In Development → Code Review → Testing → Ready to Deploy → Deploy → Done
+                         G1        G2               G3               G4           G5        G6                G7       G8
 ```
+
+> `Backlog` = сырой интейк (агенты не берут). `Sprint` = взято в работу (человек кладёт рукой или
+> `/sprint add`). Переход `Backlog → Sprint` — это **действие человека**, не gate. Оркестратор
+> берёт новую работу ТОЛЬКО из `Sprint`; для `feature`/`epic` первый gate — G1 (`Sprint → Analysis`),
+> для dev-ready (`story`/`bug`/…) вход в пайплайн — G3 (`Sprint → In Development`).
 
 | Gate | Переход | Enforcer | Активный агент справа |
 |------|---------|----------|-----------------------|
-| G1 | Backlog → Analysis | analysis-lead | analyst + architect |
+| G1 | Sprint → Analysis | analysis-lead | analyst + architect |
 | G2 | Analysis → Ready for Dev | analysis-lead | — (ожидание) |
 | G3 | Ready for Dev → In Development | dev-lead | developer |
 | G4 | In Development → Code Review | dev-lead | security-reviewer + java-reviewer + frontend-reviewer (по delta) |
@@ -27,10 +32,11 @@ Backlog → Analysis → Ready for Dev → In Development → Code Review → Te
 
 ## Gate Definitions
 
-### G1 — Backlog → Analysis
+### G1 — Sprint → Analysis
 
 **Enforcer:** analysis-lead
-**Transition:** Status: `Backlog` → `Analysis` (`kanban_set {N} "Analysis"`)
+**Transition:** Status: `Sprint` → `Analysis` (`kanban_set {N} "Analysis"`)
+**Источник:** только `feature`/`epic` из колонки `Sprint` (взято в работу человеком). `Backlog` не трогаем — это интейк.
 **Активный агент справа:** analyst + architect (работают в статусе Analysis).
 
 Checklist:
@@ -73,6 +79,7 @@ Verdict: **PASS** | **NEEDS WORK** (spec неполный / stories наруша
 
 **Enforcer:** dev-lead
 **Transition:** Status: `Ready for Dev` → `In Development` (`kanban_set {N} "In Development"`)
+**Источник:** `Ready for Dev` (дочерние stories после анализа) ИЛИ dev-ready задачи (`story`/`bug`/`tech-debt`/`hotfix`/`spike`), взятые человеком прямо в `Sprint` (тогда переход `Sprint → In Development`).
 **Активный агент справа:** developer (реализует в статусе In Development).
 
 Checklist:

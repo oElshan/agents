@@ -61,7 +61,8 @@ mkfield(){ # name datatype [options]
 # Status обычно уже есть; mkfield пропустит его. Опции на случай чистой доски.
 # Порядок опций = поток агентов (agent-per-status): каждый Status — активный агент,
 # Code Review = security-reviewer + java-reviewer + frontend-reviewer (по delta), Deploy = devops.
-mkfield "Status"     SINGLE_SELECT "Backlog,Analysis,Ready for Dev,In Development,Code Review,Testing,Ready to Deploy,Deploy,Done"
+# Sprint — колонка-обязательство после Backlog: человек кладёт задачу, оркестратор берёт ТОЛЬКО отсюда.
+mkfield "Status"     SINGLE_SELECT "Backlog,Sprint,Analysis,Ready for Dev,In Development,Code Review,Testing,Ready to Deploy,Deploy,Done"
 mkfield "Type"       SINGLE_SELECT "feature,epic,story,bug,tech-debt,hotfix,spike"
 mkfield "Priority"   SINGLE_SELECT "critical,high,medium,low"
 mkfield "Size"       SINGLE_SELECT "xs,s,m,l,xl"
@@ -73,31 +74,27 @@ mkfield "QA"         SINGLE_SELECT "pending,in-progress,passed,failed"
 mkfield "Deploy"     SINGLE_SELECT "none,staging,production"
 mkfield "Coverage"   NUMBER        ""
 mkfield "Parked"     SINGLE_SELECT "no,deps,human,oscillation,budget"
-mkfield "Sprint"     SINGLE_SELECT "Sprint 1"
 ```
 
 > `Parked` пишет ТОЛЬКО оркестратор (`/orchestrate`): помечает заклинившие/ждущие-человека
 > issue, чтобы петля не крутила их вхолостую. Остальные агенты его не трогают.
 >
-> `Sprint` — планирование: пусто = бэклог (интейк), значение = утверждённый спринт. Пишет
-> **человек** (перетаскиванием на доске или командой `/sprint`). Оркестратор его ТОЛЬКО читает
-> и работает исключительно по `Sprint = orchestrator.current_sprint`; бэклог не трогает никогда.
-> Новые спринты добавляет `/sprint new` (дописывает опцию). Iteration-поле не используем — его
-> нельзя создать через API (только single-select создаётся `mkfield`).
->
-Отдельные view создаются в UI (через `gh`/API views не создаются) — см. ШАГ 3.5 ниже.
+> **`Sprint` — это опция поля `Status` (колонка), а не отдельное поле.** Колонка после `Backlog`:
+> человек кладёт туда задачу (перетаскиванием или `/sprint add #N`), оркестратор берёт НОВОЕ в
+> работу ТОЛЬКО из `Sprint` и никогда из `Backlog`. Отдельного single-select поля `Sprint`,
+> батчей «Sprint 1/2» и `orchestrator.current_sprint` больше нет — модель упрощена до одной колонки.
 
 ### 1.5. Добавь недостающие Status-опции на СУЩЕСТВУЮЩЕЙ доске
 
 `mkfield` пропускает уже существующее поле `Status` целиком — поэтому на действующей доске
-две новые опции (`Code Review`, `Deploy`) НЕ появятся автоматически. Опции обновляются
+новые опции (`Sprint`, `Code Review`, `Deploy`) НЕ появятся автоматически. Опции обновляются
 мутацией `updateProjectV2Field` (поле `singleSelectOptions`) — она **заменяет весь набор
 опций**. Мутации «добавить одну опцию» в публичном API нет.
 
 > 🛑 **КРИТИЧНО:** каждую СУЩЕСТВУЮЩУЮ опцию присылай **с её `id`** — иначе GitHub пересоздаст
 > её с новым id и **осиротит `Status` у ВСЕХ items** (сотни задач потеряют колонку). Новые
-> опции (`Code Review`, `Deploy`) — БЕЗ `id` (создадутся). Сначала считай текущие опции с id,
-> потом пошли полный набор. Альтернатива без риска — UI: Project → Settings → Status → + Add option.
+> опции (`Sprint`, `Code Review`, `Deploy`) — БЕЗ `id` (создадутся). Сначала считай текущие опции
+> с id, потом пошли полный набор. Альтернатива без риска — UI: Project → Settings → Status → + Add option.
 
 ```bash
 STATUS_FIELD_ID=$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format json \
@@ -112,7 +109,8 @@ gh api graphql -f query='{ node(id:"'"$PROJECT_ID"'"){ ... on ProjectV2 {
 #    Code Review после In Development, Deploy после Ready to Deploy — БЕЗ id:
 gh api graphql -f query='mutation($f:ID!){
   updateProjectV2Field(input:{ fieldId:$f, singleSelectOptions:[
-    {id:"<Backlog-id>",        name:"Backlog",         color:GRAY,   description:""},
+    {id:"<Backlog-id>",        name:"Backlog",         color:GRAY,   description:"сырой интейк — агенты не берут"},
+    {name:"Sprint",          color:BLUE,   description:"обязательство — оркестратор берёт отсюда"},
     {id:"<Analysis-id>",       name:"Analysis",        color:PURPLE, description:"analyst + architect"},
     {id:"<Ready for Dev-id>",  name:"Ready for Dev",   color:BLUE,   description:""},
     {id:"<In Development-id>", name:"In Development",  color:YELLOW, description:"developer"},
@@ -125,12 +123,12 @@ gh api graphql -f query='mutation($f:ID!){
 }' -f f="$STATUS_FIELD_ID"
 ```
 
-> На **чистой** доске этот шаг не нужен: `mkfield` из шага 1 уже создаст Status с 9 опциями.
+> На **чистой** доске этот шаг не нужен: `mkfield` из шага 1 уже создаст Status с 10 опциями.
 
 ### 2. Проверь поля
 
 ```bash
-# должны присутствовать все 13 полей системы (плюс встроенные Title/Assignees/…)
+# должны присутствовать все 12 полей системы (плюс встроенные Title/Assignees/…)
 gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format json \
  | jq -r '.fields[] | "\(.name) [\(.type)]\(if .options then "  " + ([.options[].name]|join("|")) else "" end)"'
 ```
@@ -143,23 +141,18 @@ gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --limit 50 --format jso
 - `Item closed` → Done — оставить.
 - `Auto-add to project` — выключить или ограничить `repo:$REPO` + `is:issue` (значение REPO — из board.env; чужие issue и PR на доску не попадают).
 
-### 3.5. Views: «доски» бэклога и спринта (UI, разово)
+### 3.5. Board view (UI, разово)
 
-View'ы через `gh`/API не создаются — только в UI. Функционально они **не обязательны**
-(оркестратор фильтрует по полю `Sprint` сам), но дают человеку разделение «бэклог vs спринт»
-и способ **перетаскивать задачи в спринт рукой**. Открой Project → «+ New view» и заведи три:
+Спринт теперь — **колонка `Status`**, поэтому отдельные view для спринта не нужны: стандартная
+доска, сгруппированная по `Status` (Board layout, Group by `Status`), уже показывает колонки
+`Backlog → Sprint → Analysis → …`. Человек **перетаскивает карточку из `Backlog` в `Sprint`** —
+это и есть «взять задачу в работу» (эквивалент `/sprint add #N`). Оркестратор увидит по факту
+(Status=Sprint). Дополнительные view опциональны:
 
 | View | Layout | Group by | Filter | Зачем |
 |------|--------|----------|--------|-------|
-| **Sprint Board** | Board | `Status` | `sprint:"<текущий спринт>"` | обычный канбан, но только текущий спринт — то, по чему идёт `/orchestrate` |
-| **Backlog** | Table | — | `no:sprint` | интейк: всё без спринта |
-| **Planning** | Board | `Sprint` | — | колонки-спринты + «No Sprint»; **перетаскиваешь карточку в колонку спринта = утвердил** (эквивалент `/sprint add`) |
-
-- Фильтр пустого поля в GitHub — `no:sprint`; конкретного — `sprint:"Sprint 1"`.
-- Single-select не поддерживает `@current` — в «Sprint Board» фильтр по имени; при смене спринта
-  поправь фильтр (или пользуйся «Planning»-видом, где спринт задаётся перетаскиванием).
-- «Planning» — это и есть та «доска», где задачу двигаешь в спринт мышкой; оркестратор увидит
-  по факту (поле `Sprint`), как и при `/sprint add`.
+| **Board** | Board | `Status` | — | обычный канбан со всеми колонками, включая `Sprint` |
+| **Backlog** | Table | — | `status:Backlog` | интейк: сырые задачи, ещё не взятые в работу |
 
 ### 4. Backstop workflow + secret
 
@@ -181,9 +174,10 @@ echo "Required: repo secret KANBAN_PROJECT_TOKEN
 KANBAN BOARD INITIALIZED (field-based)
 
 Project {PROJECT_NUMBER} ({OWNER}/{REPO} из .claude/board.env) — единственный источник правды.
-Поля (13): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage, Parked, Sprint
-Status (agent-per-status, 9): Backlog → Analysis → Ready for Dev → In Development
+Поля (12): Status, Type, Priority, Size, Component, Security, JavaReview, FrontendReview, QA, Deploy, Coverage, Parked
+Status (agent-per-status, 10): Backlog → Sprint → Analysis → Ready for Dev → In Development
   → Code Review → Testing → Ready to Deploy → Deploy → Done
+  (Backlog = интейк; Sprint = взято в работу — вход оркестратора)
 Состояние двигают: kb_set / kanban_set (.claude/agents/kanban-board-sync.md)
 Backstop: .github/workflows/kanban-reconcile.yml (secret KANBAN_PROJECT_TOKEN)
 Лейблы: НЕ используются для состояния.

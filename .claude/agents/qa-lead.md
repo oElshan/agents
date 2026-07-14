@@ -129,7 +129,7 @@ CONTEXT LOADING:
 4. ПРОГОНИ каждый AC по живой системе (curl/REST на уровне A): happy path, RBAC 401/403, not-found 404, invalid 400, persistence (POST→GET); microservices → graceful degradation + идемпотентность; high_load → пагинация/cap. Собери evidence (статус+тело/лог) на КАЖДЫЙ сценарий.
 5. Перепрогони автотесты ПО ФАКТУ: commands.backend.test (microservices → test_one_service) — не доверяй числам из handoff. Приложи вывод.
 6. Вердикт по каждому AC (Expected vs Actual + evidence). Итог story = PASS только если ВСЕ AC PASS + автотесты SUCCESS + build зелёный.
-7. При ЛЮБОМ провале (build/тесты/AC) — заведи Bug issue на каждый дефект: repro + Expected + Actual(evidence) + Blocks: #{N}; kb_meta type=bug priority=<severity>; kb_sprint наследует спринт родителя; kanban_set BUG Backlog; comment-ссылка в story. Дубликаты не плоди (проверь открытые баги на этот AC).
+7. При ЛЮБОМ провале (build/тесты/AC) — заведи Bug issue на каждый дефект: repro + Expected + Actual(evidence) + Blocks: #{N}; kb_meta type=bug priority=<severity>; kanban_set BUG Sprint (сразу в работу — баг блокирует идущую задачу); comment-ссылка в story. Дубликаты не плоди (проверь открытые баги на этот AC).
 8. Обнови docs/test-cases/feature-{P}-{name}.md как living QA report (Actual+Verdict+дата) + traceability. Git commit.
 9. Погаси стенд (commands.local_env.down на уровне A). Дозапиши ✅-раздел в story-{N}.md.
 
@@ -253,7 +253,7 @@ Next:
 - **Parallel by default**: тесты разных stories ВСЕГДА независимы — параллель максимально
 - **WIP**: не более `quality.wip_limit` (default 5) stories в testing
 - **Priority**: critical/high первыми
-- **Bug = Issue**: каждый провал AC = отдельный GitHub Issue (repro + Expected/Actual + evidence). Заводит тестировщик; наследует спринт родителя. Failed story → `In Development` (петля).
+- **Bug = Issue**: каждый провал AC = отдельный GitHub Issue (repro + Expected/Actual + evidence). Заводит тестировщик; сразу в колонку `Sprint` (блокирует идущую работу). Failed story → `In Development` (петля).
 - **Coverage gate**: ≥ quality.unit_coverage_min (default 95%) по изменённым файлам; hotfix — quality.hotfix_coverage_min (default 50%)
 - **Build/test gate**: build сломан или автотесты FAILED — немедленно FAIL story (`kb_set {N} QA failed` → `In Development`)
 - **Error recovery**: если tester упал — НЕ переводи в ready-to-deploy; перезапусти или разбери причину

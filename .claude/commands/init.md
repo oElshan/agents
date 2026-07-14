@@ -113,9 +113,9 @@ ls docker-compose*.yml compose*.yml .github/workflows .gitlab-ci.yml Jenkinsfile
 - `orchestrator.*`: дефолты петли `/orchestrate` — `mode: continuous`, `concurrency: auto`,
   `max_ticks: 20`, `stall_rounds: 2`, `budget_tokens: null`, `pace_seconds: 1200`,
   `stop_on_human_gate: true`, `disabled_stages: []`. Обычно оставить как есть.
-- Спринтовая модель: `current_sprint: ""` (оркестратор работает только по текущему спринту,
-  бэклог не трогает — ставится позже через `/sprint activate`), `sprint_model: stories`,
-  `sprint_carryover: next`.
+- Спринтовая модель: спринт — это **Status-колонка `Sprint`** (после `Backlog`), не поле. Отдельных
+  профильных ключей (`current_sprint`/`sprint_model`/`sprint_carryover`) нет — человек кладёт задачу
+  в колонку `Sprint` (`/sprint add #N` или перетаскиванием), оркестратор берёт новое только оттуда.
 
 ⚠️ Если профиль уже `initialized: true` — см. раздел «Идемпотентность» (подтверждение обязательно).
 

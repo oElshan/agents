@@ -11,13 +11,13 @@ argument-hint: "<пусто=вся доска | analyze|develop|test|deploy [#N 
 
 ## Маппинг `$ARGUMENTS` → политика оркестратора
 
-Stage → колонка Status: `analyze`→Backlog, `develop`→Ready for Dev, `test`→Testing, `deploy`→Ready to Deploy.
+Stage → колонка Status: `analyze`→`Sprint` (feature/epic), `develop`→Ready for Dev (+ dev-ready в `Sprint`), `test`→Testing, `deploy`→Ready to Deploy. `Backlog` — интейк, автопилот его не берёт.
 
 | `/swarm …` | Политика `/orchestrate` |
 |---|---|
 | *(пусто)* | `mode=once concurrency=parallel scope=board` |
 | `dry-run` | `mode=once concurrency=parallel scope=board dry_run=true` |
-| `analyze [#N …]` | `mode=once concurrency=parallel scope=backlog [#N …]` |
+| `analyze [#N …]` | `mode=once concurrency=parallel scope=sprint [#N …]` |
 | `develop [#N …]` | `mode=once concurrency=parallel scope=ready-for-dev [#N …]` |
 | `test [#N …]` | `mode=once concurrency=parallel scope=testing [#N …]` |
 | `deploy [#N …]` | `mode=once concurrency=parallel scope=ready-to-deploy [#N …]` |

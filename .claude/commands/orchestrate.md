@@ -30,7 +30,7 @@ argument-hint: "<пусто=continuous автопилот | once | swarm | backl
 |---|---|---|
 | `mode` | `once` (один тик) \| `continuous` (петля до остановки) | `orchestrator.mode` (обычно `continuous`) |
 | `concurrency` | `seq` (по очереди) \| `parallel` (все Team Leads разом) \| `auto` | `orchestrator.concurrency` |
-| `scope` | `sprint` (текущий) \| `sprint:<name>` \| `<колонка>` (в спринте) \| `#<issue>` \| `backlog`/`all` (явный escape) | `sprint` |
+| `scope` | `sprint` (колонка Sprint + всё in-flight = вся работа) \| `<колонка>` \| `#<issue>` \| `backlog`/`all` (явный escape к интейку) | `sprint` |
 | `take` | сколько задач взять из колонки (`all` \| число) | `all` (в рамках WIP) |
 | `until` | `drained` \| `goal` \| `budget` (для continuous) | `drained` |
 | `skip` | стадии, отключаемые **на этот запуск** (`analysis`/`develop`/`testing`/`deploy`, через запятую) | — |
@@ -43,20 +43,30 @@ Team Lead отключённой стадии НЕ запускается — е
 
 ### Спринт-скоуп — ГЛАВНОЕ
 
-Оркестратор работает **только по текущему спринту** и **никогда не берёт из бэклога**.
-Текущий спринт — значение `orchestrator.current_sprint` из профиля (ставит `/sprint activate`).
+Спринт — это **Status-колонка `Sprint`** (после `Backlog`), а не поле. Оркестратор **берёт НОВОЕ
+в работу только из колонки `Sprint`**, ведёт всё уже начатое (in-flight) до `Done` и **никогда
+не трогает `Backlog`** (сырой интейк). Модель потока:
 
-> **Инвариант «по факту, без домыслов».** Множество задач спринта берётся ИСКЛЮЧИТЕЛЬНО из
-> живого `kb_dump` каждый тик: issue, у которых поле `Sprint == current_sprint`. Оркестратор
-> НЕ ведёт свой список, НЕ решает, что «должно» быть в спринте, и НЕ пишет поле `Sprint` сам
-> (кроме `/sprint close` carry-over и наследования спринта авто-багом). Как задача попала в
-> спринт — рукой на доске или `/sprint add` — ему безразлично: он читает только факт (поле).
-> Есть задача со `Sprint=current` → берёт в работу. Нет таких → **ничего не делает** (Шаг 6, «спринт пуст»).
+```
+Backlog (икотека)  ──человек кладёт──▶  Sprint (вход)  ──▶  Analysis / Ready for Dev  ──▶ … ──▶  Done
+```
 
-- `scope=sprint` (дефолт) = `scope=board` — рабочая доска оркестратора и есть спринт (синонимы).
-- `scope=backlog` / `scope=all` — **явный escape** к интейку (`Sprint` пусто). Только ручные
+> **Инвариант «по факту, без домыслов».** Рабочее множество берётся ИСКЛЮЧИТЕЛЬНО из живого
+> `kb_dump` каждый тик: issue со `Status ∈ {Sprint, Analysis, Ready for Dev, In Development,
+> Code Review, Testing, Ready to Deploy, Deploy}` (всё, кроме `Backlog` и `Done`). Приём НОВОГО —
+> только из `Status=Sprint`. Оркестратор НЕ ведёт свой список и НЕ решает, что «должно» быть в
+> спринте; как задача попала в `Sprint` — рукой на доске или `/sprint add` — ему безразлично.
+> Нет задач в `Sprint` и нет in-flight → **ничего не делает** (Шаг 6, `EMPTY`).
+
+- `scope=sprint` (дефолт) = `scope=board` — рабочая доска = колонка `Sprint` + всё in-flight (синонимы).
+- `scope=backlog` / `scope=all` — **явный escape** к интейку (`Status=Backlog`). Только ручные
   операции, с предупреждением; автопилот их не использует.
-- `scope=<колонка>` / `#N` — сужение **внутри** спринта.
+- `scope=<колонка>` / `#N` — сужение **внутри** рабочего множества.
+
+**Роутинг приёма из `Sprint` по `Type`:** `feature`/`epic` → analysis-lead (`Sprint → Analysis`);
+`story`/`bug`/`tech-debt`/`hotfix`/`spike` (dev-ready) → dev-lead (`Sprint → In Development`).
+Дочерние stories, рождённые анализом, ложатся в `Ready for Dev` (обычный in-flight) — их dev-lead
+берёт оттуда же.
 
 ### Пресеты (в т.ч. как разворачиваются алиасы)
 
@@ -70,8 +80,14 @@ Team Lead отключённой стадии НЕ запускается — е
 | `/orchestrate #N` | `mode=continuous scope=#N until=goal` — довести один issue до Done |
 | `/orchestrate dry-run` | текущий пресет + `dry_run=true` |
 
-Колонки-аргументы: `backlog`, `ready-for-dev`, `testing`, `ready-to-deploy` (маппинг на Status
-как в `/pick`). Транзитные `Code Review`/`Deploy` таргетить нельзя — ими владеют dev-lead/ops-lead.
+> **Разведение перегрузки `sprint`:** дефолтный `scope=sprint` (бэйр `/orchestrate`, `once`, `swarm`) =
+> **всё рабочее множество** (колонка `Sprint` + in-flight), синоним `scope=board`. Но когда `sprint`
+> приходит как **колонка-аргумент** (`/orchestrate sprint`, `/pick sprint`, `/sweep sprint`) — это
+> сужение до **колонки `Sprint`** (только приём новой работы), как любой `scope=<колонка>`.
+
+Колонки-аргументы: `sprint`, `backlog`, `ready-for-dev`, `testing`, `ready-to-deploy` (маппинг на
+Status как в `/pick`). `sprint` = приём новой работы из колонки `Sprint`. Транзитные
+`Code Review`/`Deploy` таргетить нельзя — ими владеют dev-lead/ops-lead.
 
 **Две формы ввода принимаются равноправно:**
 - человекочитаемые пресеты (`once`, `swarm`, `<колонка>`, `#N`, `dry-run`) — из таблицы выше;
@@ -102,34 +118,33 @@ Team Lead отключённой стадии НЕ запускается — е
 
 ```bash
 kb_dump > "${TMPDIR:-/tmp}/orch.json"
-CUR="$(current_sprint)"    # значение orchestrator.current_sprint из профиля
 ```
 
-Один дамп даёт все issue со всеми полями (Status/…/**Parked**/**Sprint**). **Сузь до scope
-ПО ФАКТУ** — это и есть множество работы; ничего не додумывай:
+Один дамп даёт все issue со всеми полями (Status/…/**Parked**). **Сузь до scope ПО ФАКТУ** — это
+и есть множество работы; ничего не додумывай:
 
 ```bash
-# по умолчанию scope=sprint: только issue текущего спринта (поле Sprint == current)
-jq --arg cur "$CUR" '[.[] | select((.sprint // "")==$cur)]' "${TMPDIR:-/tmp}/orch.json" \
+# по умолчанию scope=sprint: колонка Sprint + всё in-flight (всё, кроме Backlog и Done)
+jq '[.[] | select(.status!=null and .status!="Backlog" and .status!="Done")]' "${TMPDIR:-/tmp}/orch.json" \
   > "${TMPDIR:-/tmp}/orch.scope.json"
-# scope=backlog → select .sprint пусто ;  scope=all → без фильтра ;  scope=<колонка>/#N → доп. фильтр
+# scope=backlog → select .status=="Backlog" ;  scope=all → без фильтра ;  scope=<колонка>/#N → доп. фильтр
 ```
 
-**Если срез пуст** (на доске нет ни одной issue со `Sprint=$CUR`) → оркестратор **ничего не
-делает**: сразу Шаг 6, стоп-причина `EMPTY` («спринт пуст — добавь задачи в спринт»). Никаких
-попыток «найти работу» в бэклоге.
+**Если срез пуст** (нет ни одной issue в `Sprint` и нет in-flight — всё либо в `Backlog`, либо
+`Done`) → оркестратор **ничего не делает**: сразу Шаг 6, стоп-причина `EMPTY` («в спринте пусто —
+переложи задачи из Backlog в Sprint / `/sprint add`»). Никаких попыток «найти работу» в бэклоге.
 
 Посчитай **board_score** — сумму индексов стадий (мера прогресса) по срезу:
 
 ```
-index: Backlog 0 · Analysis 1 · Ready for Dev 2 · In Development 3 · Code Review 4
-     · Testing 5 · Ready to Deploy 6 · Deploy 7 · Done 8
-board_score = Σ index(status) по всем не-Parked issue в срезе спринта
+index: Backlog 0 · Sprint 1 · Analysis 2 · Ready for Dev 3 · In Development 4 · Code Review 5
+     · Testing 6 · Ready to Deploy 7 · Deploy 8 · Done 9
+board_score = Σ index(status) по всем не-Parked issue в срезе
 ```
 
 ```bash
 jq '[.[] | select((.parked // "no")=="no") | .status as $s |
-     (["Backlog","Analysis","Ready for Dev","In Development","Code Review","Testing","Ready to Deploy","Deploy","Done"]
+     (["Backlog","Sprint","Analysis","Ready for Dev","In Development","Code Review","Testing","Ready to Deploy","Deploy","Done"]
       | index($s)) // 0] | add' "${TMPDIR:-/tmp}/orch.scope.json"
 ```
 
@@ -179,18 +194,22 @@ Parked-issue исключены из фронта, но всплывают в ф
 
 ```
 Ready to Deploy → Testing → (Code Review, Deploy — ведут сами Team Leads) →
-In Development → Ready for Dev → Analysis → Backlog
+In Development → Ready for Dev → Analysis → Sprint (приём новой работы)
 ```
+`Backlog` во фронт **не входит** — это сырой интейк, автопилот его не трогает.
 
 Ограничения:
 - `Ready for Dev` → бери не больше `dev_capacity` (остальное — SKIPPED (WIP)).
 - `Testing` → в рамках `test_capacity`.
 - `Ready to Deploy` → только issue с `QA=passed` И `Security=passed`.
+- `Sprint` (приём) → маршрутизируй по `Type`: `feature`/`epic` → analysis-lead; остальные
+  (dev-ready) → dev-lead, в рамках `dev_capacity`.
 - `take=1` (пресет `/pick`) → взять ровно одну верхнюю по приоритету из scope-колонки.
 - `scope=<колонка>` → только эта колонка; `scope=#N` → только этот issue (и его дети-stories).
 
 Сгруппируй фронт по Team Lead: **ops-lead** (Ready to Deploy) · **qa-lead** (Testing) ·
-**dev-lead** (In Development + Ready for Dev) · **analysis-lead** (Backlog).
+**dev-lead** (In Development + Ready for Dev + dev-ready из `Sprint`) ·
+**analysis-lead** (`feature`/`epic` из `Sprint`).
 
 ### Отключённые стадии (HELD)
 
@@ -199,8 +218,8 @@ In Development → Ready for Dev → Analysis → Backlog
 
 | Стадия | Team Lead исключается | Буфер (HELD) |
 |---|---|---|
-| `analysis` | analysis-lead | Backlog |
-| `develop` | dev-lead | Ready for Dev |
+| `analysis` | analysis-lead | `Sprint` (feature/epic ждут приёма) |
+| `develop` | dev-lead | `Ready for Dev` (+ dev-ready в `Sprint`) |
 | `testing` | qa-lead | Testing |
 | `deploy` | ops-lead | Ready to Deploy |
 
@@ -220,7 +239,7 @@ In Development → Ready for Dev → Analysis → Backlog
 
 ```
 ORCHESTRATE DRY-RUN — {date}
-Sprint: {current_sprint} ({N} задач на доске в этом спринте)
+Scope: sprint (колонка Sprint + in-flight) — {N} задач в работе, {M} ждут приёма в Sprint
 Policy: mode={..} concurrency={..} scope={..} until={..}
 WIP: Dev {dev_wip}/{wip_limit} (cap {dev_capacity}) · Test {test_wip}/{wip_limit} (cap {test_capacity})
 
@@ -229,8 +248,8 @@ DISABLED stages: {список отключённых или «нет»}
 FRONTIER (right-to-left):
   OPS   → #N … (Ready to Deploy→Done)          [строку пропусти, если deploy off]
   QA    → #N … (Testing→Ready to Deploy)        [пропусти, если testing off]
-  DEV   → #N … (In Dev→Review→Testing) | #N … (Ready for Dev→In Dev)   [приём из Ready for Dev пропусти, если develop off]
-  ANLZ  → #N … (Backlog→Ready for Dev)          [пропусти, если analysis off]
+  DEV   → #N … (In Dev→Review→Testing) | #N … (Ready for Dev→In Dev) | #N … (Sprint→In Dev, dev-ready)   [приём пропусти, если develop off]
+  ANLZ  → #N … (Sprint→Analysis, feature/epic)  [пропусти, если analysis off]
 
 HELD (стадия отключена — ждут в буфере):
   ⏸️ #N — deploy off (в Ready to Deploy)
@@ -238,6 +257,7 @@ HELD (стадия отключена — ждут в буфере):
 PARKED:  🅿️ #N (oscillation|human|deps)
 BLOCKED: 🚫 #N — by #M
 SKIPPED: ⊘ #N — WIP limit
+BACKLOG (не в работе, автопилот игнорит): {K} задач — переложи в Sprint, чтобы взять
 
 Termination target: {until}
 ```
@@ -272,7 +292,7 @@ Agent(subagent_type="qa-lead"[, run_in_background=true], prompt="ORCHESTRATE —
 Read .claude/project-profile.md, CLAUDE.md, ARCHITECTURE.md (if exists).
 Issues (test): {список}. Пропусти BLOCKED (deps).
 Per issue pre-flight: kb_get N Security==passed (иначе BLOCKED — Testing остаётся, comment); coverage из .claude/handoffs/story-N-dev.md >= quality.unit_coverage_min; build green.
-Per issue (pre-flight OK): test-case-writer (QA-инженер) — TC из AC → поднять реальный стенд (commands.local_env.up → иначе commands.backend.integration_test/Testcontainers → иначе degraded с флагом) → ПРОГНАТЬ каждый AC по живой системе (curl/REST: happy/RBAC 401-403/error/persistence; microservices → graceful degradation+идемпотентность; high_load → пагинация) → перепрогнать commands.backend.test ПО ФАКТУ → завести Bug issue на КАЖДЫЙ провалившийся AC (repro+Expected+Actual(evidence)+Blocks:#N, kb_sprint наследует спринт) → living QA report + traceability. НЕ unit-тесты (developer), НЕ security (Code Review), НЕ UI E2E (отдельный /e2e).
+Per issue (pre-flight OK): test-case-writer (QA-инженер) — TC из AC → поднять реальный стенд (commands.local_env.up → иначе commands.backend.integration_test/Testcontainers → иначе degraded с флагом) → ПРОГНАТЬ каждый AC по живой системе (curl/REST: happy/RBAC 401-403/error/persistence; microservices → graceful degradation+идемпотентность; high_load → пагинация) → перепрогнать commands.backend.test ПО ФАКТУ → завести Bug issue на КАЖДЫЙ провалившийся AC (repro+Expected+Actual(evidence)+Blocks:#N, kanban_set BUG Sprint — сразу в работу) → living QA report + traceability. НЕ unit-тесты (developer), НЕ security (Code Review), НЕ UI E2E (отдельный /e2e).
 G6: PASS (ВСЕ AC verified PASS + автотесты SUCCESS + build green) → kb_set N QA passed (+ kb_num N Coverage) + kanban_set N 'Ready to Deploy'. FAIL (любой AC FAIL / build/тесты сломаны) → баги заведены тестировщиком, kb_set N QA failed + kanban_set N 'In Development' (петля). WIP=quality.wip_limit.
 Стадию — ТОЛЬКО kanban_set. Report: per issue — stand level (A/B/C), {pass}/{total} AC, autotests, VERDICT, bugs filed.")
 ```
@@ -281,7 +301,7 @@ G6: PASS (ВСЕ AC verified PASS + автотесты SUCCESS + build green) �
 ```
 Agent(subagent_type="dev-lead"[, run_in_background=true], prompt="ORCHESTRATE — DEV LEAD.
 Read .claude/project-profile.md, CLAUDE.md, ARCHITECTURE.md (if exists).
-Stories: {список dev_tasks в рамках dev_capacity}. Пропусти BLOCKED. Sort by Priority.
+Stories: {список dev_tasks в рамках dev_capacity} — из 'Ready for Dev' И dev-ready задач (story/bug/tech-debt/hotfix/spike) из колонки 'Sprint' (их developer двигает Sprint→In Development). Пропусти BLOCKED. Sort by Priority.
 Независимые stories → developer'ы ПАРАЛЛЕЛЬНО (isolation=worktree); зависимые (общие entity) → последовательно.
 Each developer: ветка feature/{featN}-{slug} → story/{N}-{slug} от неё → implement backend/frontend по spec/arch → unit-тесты (coverage>=quality.unit_coverage_min, реально через commands.backend.coverage) → build green → commit + merge story→feature. developer НЕ меняет Status.
 dev-lead после каждого: G4 (git status чист + commands.backend.test SUCCESS + merged) → kanban_set N 'Code Review' → reviewers по delta ПАРАЛЛЕЛЬНО: security-reviewer (всегда) + java-reviewer (backend-delta) + frontend-reviewer (frontend-delta) → G5 (Security=passed И JavaReview∈{passed,warning} если backend-delta И FrontendReview∈{passed,warning} если frontend-delta; неприменимый reviewer не запускается — поле pending, «N/A» в Gate Report) → kanban_set N 'Testing'.
@@ -293,8 +313,8 @@ review-fail → developer fix, max quality.fix_loop_max циклов (потом
 ```
 Agent(subagent_type="analysis-lead"[, run_in_background=true], prompt="ORCHESTRATE — ANALYSIS LEAD.
 Read .claude/project-profile.md, CLAUDE.md, ARCHITECTURE.md (if exists).
-Features: {список из Backlog}.
-Per feature: G1 → analyst (декомпозиция → stories + docs/specs/feature-N-*.md, SDC 8 слотов, SD-1..SD-5) → architect (docs/arch/feature-N-*.md, ERD/API/ADR по budget-threshold). Разные фичи — ПАРАЛЛЕЛЬНО; одна фича analyst→architect последовательно.
+Features (feature/epic из колонки Sprint): {список}. Backlog НЕ трогай — это интейк.
+Per feature: G1 (Sprint→Analysis, kanban_set N 'Analysis') → analyst (декомпозиция → stories + docs/specs/feature-N-*.md, SDC 8 слотов, SD-1..SD-5) → architect (docs/arch/feature-N-*.md, ERD/API/ADR по budget-threshold). Разные фичи — ПАРАЛЛЕЛЬНО; одна фича analyst→architect последовательно.
 Дочерние stories: kb_meta N type=story priority=* size=* component=* → kanban_set N 'Ready for Dev'.
 G2 → kanban_set feature 'Ready for Dev'. Стадию — ТОЛЬКО kanban_set. Report: ANALYZED (stories/spec/arch)/FAILED.")
 ```
@@ -315,7 +335,7 @@ G2 → kanban_set feature 'Ready for Dev'. Стадию — ТОЛЬКО kanban_
 
 | Предикат | Условие | Итог |
 |---|---|---|
-| **EMPTY** | в срезе спринта нет ни одной issue (на доске ничего со `Sprint=current`) | 🈳 нечего делать |
+| **EMPTY** | нет ни одной issue в `Sprint` и нет in-flight (всё в `Backlog` или `Done`) | 🈳 нечего делать |
 | **GOAL** | все не-Parked issue в scope = `Done` | ✅ success |
 | **HELD** | фронт пуст только из-за отключённых стадий, а в их буферах есть задачи | ⏸️ на паузе |
 | **DRAINED** | фронт пуст И нет in-flight агентов (остаток = Parked/BLOCKED) | ⏹ drained |
@@ -354,7 +374,7 @@ G2 → kanban_set feature 'Ready for Dev'. Стадию — ТОЛЬКО kanban_
 
 ```
 ORCHESTRATE {STOP-REASON} — {date}
-Sprint: {current_sprint} ({N} задач в спринте)
+Scope: sprint (колонка Sprint + in-flight) — {N} задач в работе
 Policy: mode={..} concurrency={..} scope={..} until={..}
 Ticks: {tick} · Duration: ~{time}
 
@@ -375,15 +395,15 @@ PARKED (нужен человек):
 BLOCKED (зависимости): 🚫 #N — by #M
 SKIPPED (WIP): ⊘ #N
 
-STOP REASON: {EMPTY спринт пуст — добавь задачи (/sprint add) | GOAL всё Done |
+STOP REASON: {EMPTY в спринте пусто — переложи задачи в Sprint (/sprint add #N) | GOAL всё Done |
               HELD стадии {X} отключены, {N} задач ждут | DRAINED остаток заблокирован |
               STALL нет прогресса {stall_rounds}× | BUDGET {max_ticks} тиков/лимит токенов | HUMAN ждём APPROVE}
 
-BOARD AFTER (спринт {current_sprint}): Ready for Dev {n} · In Dev {n}/{wip} ·
-             Code Review {n} · Testing {n}/{wip} · Ready to Deploy {n} · Done(+{n})
+BOARD AFTER: Sprint {n} (ждут приёма) · Analysis {n} · Ready for Dev {n} · In Dev {n}/{wip} ·
+             Code Review {n} · Testing {n}/{wip} · Ready to Deploy {n} · Done(+{n})   [Backlog {n} — интейк, вне работы]
 
-NEXT: {что человеку сделать — добавить задачи в спринт (/sprint add #N), включить стадию
-       (/stage on deploy), разпарковать #N, дать APPROVE, разблокировать deps; либо «Спринт закрыт 🎉»}
+NEXT: {что человеку сделать — переложить задачи из Backlog в Sprint (/sprint add #N), включить
+       стадию (/stage on deploy), разпарковать #N, дать APPROVE, разблокировать deps; либо «Всё в спринте готово 🎉»}
 ```
 
 В `mode=continuous`, если завершились по HUMAN/STALL/BUDGET и хочешь, чтобы петля продолжилась

@@ -72,9 +72,11 @@ architect(F1) ⟂ architect(F2) ⟂ architect(F3)  # параллельно ПО
 - Зависимости между ними
 - Режим: sequential или swarm
 
-### ШАГ 2 — Quality Gate G1 (Backlog → Analysis)
+### ШАГ 2 — Quality Gate G1 (Sprint → Analysis)
 
-Перед запуском analyst — выполни **Quality Gate G1**:
+Берёшь на анализ **только `feature`/`epic` из колонки `Sprint`** (задача взята в работу человеком).
+`Backlog` — сырой интейк, его НЕ трогаешь. Перед запуском analyst — выполни **Quality Gate G1**
+и переведи `kanban_set {N} "Analysis"`:
 - [ ] Business value описана
 - [ ] AC присутствуют
 - [ ] Нет дубликатов

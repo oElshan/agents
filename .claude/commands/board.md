@@ -1,6 +1,6 @@
 ---
-description: "Kanban: Board. Доска: колонки, WIP, блокировки, метрики. По умолчанию — текущий спринт. /board | /board backlog | /board all | /board sprints"
-argument-hint: "<пусто=спринт | backlog | all | sprints>"
+description: "Kanban: Board. Доска: колонки, WIP, блокировки, метрики. По умолчанию — работа (Sprint + in-flight). /board | /board backlog | /board all"
+argument-hint: "<пусто=работа (Sprint+in-flight) | backlog | all>"
 ---
 
 # KANBAN — Board Status
@@ -35,15 +35,14 @@ argument-hint: "<пусто=спринт | backlog | all | sprints>"
 
 | `/board …` | Что |
 |---|---|
-| *(пусто)* | **текущий спринт** (`Sprint = orchestrator.current_sprint`) — то, по чему работает оркестратор |
-| `backlog` | интейк: issue без спринта (`Sprint` пусто) |
-| `all` | вся доска (спринт + бэклог) |
-| `sprints` | сводка по всем спринтам (число задач / Done в каждом) — как `/sprint list` |
+| *(пусто)* | **работа**: колонка `Sprint` + всё in-flight (`Analysis`…`Deploy`) — то, по чему работает оркестратор |
+| `backlog` | интейк: `Status=Backlog` (сырые задачи, ещё не взятые в работу) |
+| `all` | вся доска (работа + бэклог + Done) |
 
-Возьми `CUR="$(current_sprint)"` (хелпер из `kanban-board-sync.md`). Ниже все `jq`-фильтры
-дополни отбором по scope: по умолчанию `select((.sprint//"")==$CUR)`; для `backlog` —
-`select((.sprint//"")=="")`; для `all` — без фильтра. В заголовке отчёта укажи scope и спринт.
-Если `CUR` пуст и scope=спринт — сообщи «текущий спринт не выбран (/sprint activate)».
+Ниже все `jq`-фильтры дополни отбором по scope: по умолчанию
+`select(.status!="Backlog" and .status!="Done")`; для `backlog` — `select(.status=="Backlog")`;
+для `all` — без фильтра. В заголовке отчёта укажи scope. Колонку `Sprint` показывай отдельно —
+это «взято в работу, ждёт приёма оркестратором».
 
 ### 1. Сделай один дамп доски
 
@@ -56,6 +55,7 @@ kb_dump > "${TMPDIR:-/tmp}/board.json"     # JSON-массив: {number,title,st
 
 # Колонки (группировка по полю Status):
 jq -r '.[] | select(.status=="Backlog")        | "#\(.number)\t\(.title)"' "${TMPDIR:-/tmp}/board.json"
+jq -r '.[] | select(.status=="Sprint")          | "#\(.number)\t\(.title)"' "${TMPDIR:-/tmp}/board.json"
 jq -r '.[] | select(.status=="Analysis")        | "#\(.number)\t\(.title)"' "${TMPDIR:-/tmp}/board.json"
 jq -r '.[] | select(.status=="Ready for Dev")    | "#\(.number)\t\(.title)"' "${TMPDIR:-/tmp}/board.json"
 jq -r '.[] | select(.status=="In Development")   | "#\(.number)\t\(.title)"' "${TMPDIR:-/tmp}/board.json"
@@ -80,10 +80,10 @@ jq -r '.[] | select(.status=="Done")             | "#\(.number)\t\(.title)"' "${
 KANBAN BOARD
 {date}
 
-| Backlog | Analysis | Ready for Dev | In Development | Code Review | Testing | Ready to Deploy | Deploy | Done (last 10) |
-|---------|----------|---------------|----------------|-------------|---------|-----------------|--------|-----------------|
-| #{N}    | #{N}     | #{N}          | #{N}           | #{N}        | #{N}    | #{N}            | #{N}   | #{N}            |
-| {title} | {title}  | {title}       | {title}        | {title}     | {title} | {title}         | {title}| {title}         |
+| Backlog | Sprint | Analysis | Ready for Dev | In Development | Code Review | Testing | Ready to Deploy | Deploy | Done (last 10) |
+|---------|--------|----------|---------------|----------------|-------------|---------|-----------------|--------|-----------------|
+| #{N}    | #{N}   | #{N}     | #{N}          | #{N}           | #{N}        | #{N}    | #{N}            | #{N}   | #{N}            |
+| {title} | {title}| {title}  | {title}       | {title}        | {title}     | {title} | {title}         | {title}| {title}         |
 
 WIP LIMITS (лимит {wip_limit} = quality.wip_limit из .claude/project-profile.md, default 5):
   In Development: {count}/{wip_limit} {OK/OVER}
@@ -138,10 +138,10 @@ DEPENDENCIES:
 ### 4. Рекомендации
 
 На основе состояния доски дай рекомендации:
-- Если в спринте есть незавершённые задачи → предложи `/orchestrate` (автопилот по спринту)
-- Если спринт пуст, а в бэклоге есть готовые stories → предложи `/sprint add #{N}` (утвердить в спринт)
+- Если в работе (Sprint + in-flight) есть незавершённые задачи → предложи `/orchestrate` (автопилот)
+- Если работа пуста, а в Backlog есть задачи → предложи `/sprint add #{N}` (взять в работу — колонка Sprint)
 - Если в Ready to Deploy что-то ждёт, а деплой на паузе → напомни `/stage on deploy`
-- Если бэклог пуст → предложи `/feature`
+- Если Backlog пуст → предложи `/feature`
 - Если есть блокировки → предложи решение
 
 ### 5. Sprint Standup View (Async Daily Standup)

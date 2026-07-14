@@ -22,8 +22,8 @@ argument-hint: "<пусто=статус | off <стадия…> | on <стад�
 
 | Стадия | Синонимы | Team Lead (не запускается) | Задачи ждут в |
 |---|---|---|---|
-| `analysis` | `analyze` | analysis-lead | Backlog |
-| `develop` | `dev` | dev-lead | Ready for Dev |
+| `analysis` | `analyze` | analysis-lead | `Sprint` (feature/epic) |
+| `develop` | `dev` | dev-lead | Ready for Dev (+ dev-ready в `Sprint`) |
 | `testing` | `qa`, `test` | qa-lead | Testing |
 | `deploy` | `ops` | ops-lead | Ready to Deploy |
 
@@ -66,9 +66,9 @@ on   all | reset        → очистить disabled_stages (включить �
 
 ```bash
 source .claude/board.env 2>/dev/null && kb_dump > "${TMPDIR:-/tmp}/stage.json" 2>/dev/null
-# буферы: analysis→Backlog, develop→Ready for Dev, testing→Testing, deploy→Ready to Deploy
+# буферы: analysis→Sprint, develop→Ready for Dev, testing→Testing, deploy→Ready to Deploy
 jq -r '[.[]|.status] | {
-  "Backlog":         ([.[]|select(.=="Backlog")]|length),
+  "Sprint":          ([.[]|select(.=="Sprint")]|length),
   "Ready for Dev":   ([.[]|select(.=="Ready for Dev")]|length),
   "Testing":         ([.[]|select(.=="Testing")]|length),
   "Ready to Deploy": ([.[]|select(.=="Ready to Deploy")]|length)

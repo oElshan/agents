@@ -1,6 +1,6 @@
 ---
 description: "Kanban: Sweep (алиас /orchestrate). Автопилот right-to-left, один проход, последовательно. Примеры: /sweep | /sweep testing | /sweep dry-run"
-argument-hint: "<пусто=всё | backlog | ready-for-dev | testing | ready-to-deploy | dry-run>"
+argument-hint: "<пусто=всё | sprint | ready-for-dev | testing | ready-to-deploy | dry-run>"
 ---
 
 # SWEEP — алиас `/orchestrate` (один последовательный проход)
@@ -15,7 +15,7 @@ argument-hint: "<пусто=всё | backlog | ready-for-dev | testing | ready-t
 |---|---|
 | *(пусто)* | `mode=once concurrency=seq scope=board` |
 | `dry-run` | `mode=once concurrency=seq scope=board dry_run=true` |
-| `backlog` | `mode=once concurrency=seq scope=backlog` |
+| `sprint` | `mode=once concurrency=seq scope=sprint` — приём новой работы из колонки `Sprint` |
 | `ready-for-dev` | `mode=once concurrency=seq scope=ready-for-dev` |
 | `testing` | `mode=once concurrency=seq scope=testing` |
 | `ready-to-deploy` | `mode=once concurrency=seq scope=ready-to-deploy` |

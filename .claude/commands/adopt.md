@@ -74,7 +74,7 @@ git submodule update --init --recursive "$DIR"
 ```
 Это принесёт agents/commands/system/доки (framework — overwrite, accumulator — seed-if-absent),
 **не тронет** `project-profile.md`/`board.env`/`memory/` и **домёрджит недостающие ключи профиля**
-(`orchestrator.*`, `current_sprint`, `sprint_*`, `disabled_stages`) с дефолтами.
+(`orchestrator.*`, `disabled_stages`) с дефолтами. (Спринт теперь — Status-колонка `Sprint`, не профильный ключ.)
 
 ## ШАГ 4 — Доска
 
@@ -100,13 +100,13 @@ Framework: {url|path} @ {commit сабмодуля} → {DIR}
 
 Synced:        {N обновлено, M добавлено} (agents/commands/system/доки)
 Board fields:  +Parked +Sprint {или «уже были»}
-Profile keys:  +orchestrator.* +sprint_* {или «уже были»}
+Profile keys:  +orchestrator.* {или «уже были»}
 Preserved:     project-profile значения, board.env, memory/
 
 NEXT STEPS:
   {MIGRATION:}
   • /board — проверить доску
-  • /sprint new "Sprint 1" && /sprint activate "Sprint 1"
+  • /sprint add #N … — взять задачи в работу (колонка Sprint)
   • /orchestrate dry-run — план автопилота по спринту
   • закоммить: git add .claude/ .gitmodules {DIR} && git commit -m "chore: подключить агентский фреймворк"
   {FRESH:}

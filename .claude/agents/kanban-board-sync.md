@@ -43,7 +43,7 @@ ID полей и опций **не хардкодятся** — резолвят
 
 | Поле | Тип | Значения | Пишет (single-writer) |
 |------|-----|----------|----------------------|
-| **Status** | single-select | Backlog, Analysis, Ready for Dev, In Development, Code Review, Testing, Ready to Deploy, Deploy, Done | Team Lead (`kanban_set`) |
+| **Status** | single-select | Backlog, **Sprint**, Analysis, Ready for Dev, In Development, Code Review, Testing, Ready to Deploy, Deploy, Done | Team Lead (`kanban_set`); **человек** кладёт задачу в `Sprint` |
 | **Type** | single-select | feature, epic, story, bug, tech-debt, hotfix, spike | analyst |
 | **Priority** | single-select | critical, high, medium, low | analyst |
 | **Size** | single-select | xs, s, m, l, xl | analyst |
@@ -55,13 +55,21 @@ ID полей и опций **не хардкодятся** — резолвят
 | **Deploy** | single-select | none, staging, production | devops |
 | **Coverage** | number | % покрытия из QA | qa-lead |
 | **Parked** | single-select | no, deps, human, oscillation, budget | оркестратор (`/orchestrate`) |
-| **Sprint** | single-select | (пусто)=бэклог, `Sprint 1`, `Sprint 2`, … | **человек** (`/sprint` или перетаскивание на доске) |
 
 > Поля создаются один раз через `/setup-board`. `Component` — TEXT (CSV), т.к. ProjectV2
 > не имеет multi-select, а компонент бывает многозначным.
 >
 > `JavaReview` / `FrontendReview` выставляются только когда в delta есть соответственно
 > backend/frontend файлы; иначе остаются `pending`, а dev-lead фиксирует «N/A» в Gate Report.
+
+### Спринт — это Status-колонка, а НЕ поле
+
+**`Sprint` — статус на доске (колонка `Backlog → Sprint → Analysis → …`), не отдельное поле.**
+Модель: `Backlog` = сырой интейк/икотека (агенты **не** берут, там рефайнинг рукой); `Sprint` =
+колонка-обязательство, куда **любой человек** кладёт задачу (перетаскиванием или `/sprint add #N`).
+Оркестратор **берёт НОВОЕ в работу только из `Sprint`**, ведёт всё in-flight (`Analysis`…`Deploy`)
+до `Done` и **никогда не трогает `Backlog`**. Отдельного single-select поля `Sprint`, батчей
+«Sprint 1/2» и указателя `orchestrator.current_sprint` больше нет — колонка `Sprint` их заменяет.
 
 ### Status = активный агент (agent-per-status)
 
@@ -71,7 +79,8 @@ ID полей и опций **не хардкодятся** — резолвят
 
 | Status | Активный агент(ы) | Тип |
 |--------|-------------------|-----|
-| Backlog | — (заявка) | ожидание |
+| Backlog | — (сырой интейк, агенты игнорят) | ожидание |
+| **Sprint** | — (буфер-обязательство; человек кладёт, оркестратор берёт отсюда) | ожидание/вход |
 | Analysis | analyst + architect | активный [2] |
 | Ready for Dev | — (dev-lead берёт) | ожидание |
 | In Development | developer | активный |
@@ -157,9 +166,8 @@ kb_dump(){ gh api graphql --paginate -f query='query($endCursor:String){ node(id
       qa:fieldValueByName(name:"QA"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       dp:fieldValueByName(name:"Deploy"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
       cv:fieldValueByName(name:"Coverage"){ ... on ProjectV2ItemFieldNumberValue{number} }
-      pk:fieldValueByName(name:"Parked"){ ... on ProjectV2ItemFieldSingleSelectValue{name} }
-      sp:fieldValueByName(name:"Sprint"){ ... on ProjectV2ItemFieldSingleSelectValue{name} } } } } } }' 2>/dev/null \
-   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number, parked:.pk.name, sprint:.sp.name}]'; }
+      pk:fieldValueByName(name:"Parked"){ ... on ProjectV2ItemFieldSingleSelectValue{name} } } } } } }' 2>/dev/null \
+   | jq -s --arg repo "$OWNER/$REPO" '[.[].data.node.items.nodes[] | select(.content.repository.nameWithOwner==$repo and .content.number!=null) | {number:.content.number, title:.content.title, state:.content.state, status:.st.name, type:.tp.name, priority:.pr.name, size:.sz.name, component:.cm.text, security:.se.name, javareview:.jr.name, frontendreview:.fr.name, qa:.qa.name, deploy:.dp.name, coverage:.cv.number, parked:.pk.name}]'; }
 
 # --- Удобный сеттер метаданных: kb_meta N type=story priority=high size=m component=backend,infra ---
 kb_meta(){ local N="$1"; shift
@@ -170,19 +178,15 @@ kb_meta(){ local N="$1"; shift
     component=*) kb_text "$N" Component "${kv#component=}";;
   esac; done; }
 
-# --- текущий спринт из профиля (orchestrator.current_sprint). Пусто → спринт не задан ---
-current_sprint(){ grep -E '^[[:space:]]*current_sprint:' .claude/project-profile.md 2>/dev/null \
-  | head -1 | sed -E 's/.*current_sprint:[[:space:]]*"?([^"#]*)"?.*/\1/; s/[[:space:]]+$//'; }
+# --- issue в колонке Sprint (интейк-обязательство = вход оркестратора): number<TAB>title ---
+sprint_query(){ kb_dump | jq -r '.[] | select(.status=="Sprint") | "\(.number)\t\(.title)"'; }
 
-# --- issue спринта (по умолчанию — текущего): sprint_query [<name>] → number<TAB>status<TAB>title ---
-sprint_query(){ local S="${1:-$(current_sprint)}"
-  kb_dump | jq -r --arg s "$S" '.[] | select((.sprint//"")==$s) | "\(.number)\t\(.status // "—")\t\(.title)"'; }
+# --- рабочий набор оркестратора: всё кроме Backlog и Done (Sprint + in-flight): number<TAB>status<TAB>title ---
+board_work(){ kb_dump | jq -r '.[] | select(.status!=null and .status!="Backlog" and .status!="Done") | "\(.number)\t\(.status)\t\(.title)"'; }
 
-# --- назначить issue в спринт / вернуть в бэклог: kb_sprint N "Sprint 2"  |  kb_sprint N ""  (пустой → бэклог) ---
-kb_sprint(){ local N="$1" S="$2" fid item
-  if [ -n "$S" ]; then kb_set "$N" Sprint "$S"; return; fi
-  fid=$(kb_fields | jq -r '.fields[]|select(.name=="Sprint")|.id'); item="$(kb_item "$N")" || return 1
-  gh api graphql -f query="mutation{ clearProjectV2ItemFieldValue(input:{ projectId:\"$PROJECT_ID\" itemId:\"$item\" fieldId:\"$fid\" }){ projectV2Item{ id } } }" >/dev/null && echo "#$N Sprint=(бэклог)"; }
+# --- положить issue в спринт (=взять в работу) / вернуть в бэклог ---
+sprint_add(){ kanban_set "$1" "Sprint"; }       # человек коммитит задачу → оркестратор её увидит
+sprint_remove(){ kanban_set "$1" "Backlog"; }   # вернуть в интейк (снять с автопилота)
 ```
 
 ### Примеры
@@ -215,18 +219,19 @@ kb_meta "$N" type=story priority=high size=m component=backend   # метада�
 Без `kanban_set` issue не попадёт на доску — у него не будет Status. Лейблы при создании
 issue **не ставятся** — всё в поля.
 
-### Роутинг по спринту при создании (авто-задачи)
+### Роутинг при создании (авто-задачи)
 
-Новая issue должна попасть в правильный спринт, иначе оркестратор её не увидит (или увидит не там):
+Новая issue по умолчанию попадает в `Backlog` (`kanban_set "$N" "Backlog"`). Но авто-задачи,
+блокирующие уже идущую работу, надо сразу взять в работу — иначе оркестратор их не увидит:
 
-- **Баг/регресс на задаче текущего спринта** (создаёт security-reviewer / java-reviewer /
+- **Баг/регресс на задаче в работе** (создаёт security-reviewer / java-reviewer /
   frontend-reviewer при FAIL ревью; **test-case-writer** при провале AC на реальном стенде в Testing) →
-  **наследует спринт родителя**: `kb_sprint "$N" "$(current_sprint)"`.
-  Баг блокирует цель спринта — чинить в этом же спринте.
-- **Проактивный tech-debt** (postdeploy.sh / G9, ручные идеи) → **в бэклог**: `Sprint` не ставим
-  (`kb_sprint "$N" ""` или просто не трогаем поле). Триаж — на планировании.
-- Поле `Sprint` — единственный «писатель»-человек; это исключение (детерминированное наследование
-  родителя авто-багом), а не «домысел» оркестратора о содержимом спринта.
+  **сразу в колонку Sprint**: `kanban_set "$N" "Sprint"`. Баг блокирует идущую задачу — чинится в
+  этом же прогоне; оркестратор возьмёт его из `Sprint` и доведёт до `Done`.
+- **Проактивный tech-debt** (postdeploy.sh / G9, ручные идеи) → **в `Backlog`** (`kanban_set "$N" "Backlog"`).
+  Не срочно — триаж рукой, человек сам решит, коммитить ли в `Sprint`.
+- Колонку `Sprint` двигают человек (обязательство) и авто-баг (детерминированно, т.к. блокирует
+  идущую работу) — не «домысел» оркестратора о том, что должно быть в спринте.
 
 ## ЗАПРЕЩЕНО
 
