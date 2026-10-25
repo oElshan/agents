@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Агентная разработка — шпаргалка к собеседованию</title>
+<style>
+  :root{
+    --ink:#1B2A41;        /* основной текст */
+    --ink-soft:#4B5A6E;   /* второстепенный текст */
+    --paper:#FFFFFF;
+    --panel:#F1F4F7;      /* фон блоков и схем */
+    --line:#C9D2DC;
+    --teal:#0F766E;       /* единственный акцент: стрелки, ключевые узлы */
+    --teal-soft:#D8EFEC;
+    --marker:#FFE58A;     /* «маркер» для главных тезисов */
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:17px;line-height:1.55;
+  }
+  main{max-width:760px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:34px;line-height:1.15;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
+  .lead{font-size:18px;color:var(--ink-soft);margin:0 0 28px;max-width:60ch}
+  h2{font-size:26px;line-height:1.2;margin:56px 0 12px;padding-top:24px;border-top:3px solid var(--ink)}
+  h3{font-size:19px;margin:28px 0 8px}
+  p{margin:0 0 14px;max-width:70ch}
+  ul,ol{margin:0 0 14px;padding-left:22px;max-width:70ch}
+  li{margin-bottom:6px}
+  mark{background:var(--marker);padding:0 3px;border-radius:2px}
+  .term{font-weight:600}
+  .en{color:var(--ink-soft);font-weight:400}
+  /* оглавление */
+  nav.toc{background:var(--panel);border-radius:10px;padding:18px 22px;margin:0 0 8px}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:28px}
+  nav.toc li{break-inside:avoid;margin-bottom:6px}
+  nav.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+  nav.toc a:hover,nav.toc a:focus{border-bottom-color:var(--teal)}
+  @media (max-width:560px){nav.toc ol{columns:1}}
+  /* схемы */
+  figure{margin:20px 0 22px;background:var(--panel);border-radius:10px;padding:14px 12px 8px}
+  figure svg{width:100%;height:auto;display:block}
+  figcaption{font-size:14px;color:var(--ink-soft);margin:8px 6px 4px;max-width:none}
+  /* «простыми словами» */
+  .plain{border-left:4px solid var(--teal);padding:10px 16px;margin:14px 0 18px;background:var(--teal-soft);border-radius:0 8px 8px 0}
+  .plain p{margin:0}
+  .plain p+p{margin-top:8px}
+  /* пример */
+  .example{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0 18px}
+  .example .who{font-weight:600;margin-bottom:6px}
+  .example ol{margin-bottom:0}
+  /* таблицы */
+  table{border-collapse:collapse;width:100%;margin:12px 0 20px;font-size:15.5px}
+  th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{background:var(--panel);font-weight:600}
+  td:first-child{font-weight:600;white-space:nowrap}
+  @media (max-width:560px){td:first-child{white-space:normal}}
+  /* вопрос–ответ */
+  details{border:1px solid var(--line);border-radius:10px;margin:0 0 10px;background:var(--paper)}
+  details summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;position:relative;padding-right:40px}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"+";position:absolute;right:16px;top:9px;font-size:22px;color:var(--teal);font-weight:400}
+  details[open] summary::after{content:"–"}
+  details .a{padding:0 16px 14px;color:var(--ink);border-top:1px solid var(--line);padding-top:12px}
+  details .a p:last-child{margin-bottom:0}
+  details summary:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:10px}
+  .tip{font-size:15px;color:var(--ink-soft)}
+  /* карточка тезисов */
+  .card{background:var(--ink);color:#fff;border-radius:12px;padding:20px 22px;margin:18px 0}
+  .card h3{margin:0 0 10px;color:#fff}
+  .card ol{margin:0;color:#fff}
+  .card li{margin-bottom:8px}
+  .small{font-size:14px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Агентная разработка: RAG, ReAct, MCP, LangGraph</h1>
+<p class="lead">Шпаргалка к собеседованию на позицию технического лидера. Простые объяснения, схемы, примеры и вопросы с ответами — с учётом методологии Сбера «AI-Disrupt PDLC» (версия 2.0, июнь 2026).</p>
+
+<nav class="toc" aria-label="Оглавление">
+<ol>
+  <li><a href="#s1">Что такое языковая модель в приложении</a></li>
+  <li><a href="#s2">Агент = модель + среда. Почему «среда важнее модели»</a></li>
+  <li><a href="#s3">ReAct: как агент думает и действует</a></li>
+  <li><a href="#s4">RAG: экзамен с открытой книгой</a></li>
+  <li><a href="#s5">MCP: одна розетка для всех инструментов</a></li>
+  <li><a href="#s6">LangChain и LangGraph: конвейер и блок-схема</a></li>
+  <li><a href="#s7">Шесть паттернов агентных систем</a></li>
+  <li><a href="#s8">Методология Сбера: что знать к собеседованию</a></li>
+  <li><a href="#s9">Java/Kotlin-стек: Spring AI и LangChain4j</a></li>
+  <li><a href="#s10">Вопросы и ответы</a></li>
+  <li><a href="#s11">Карточка тезисов на завтра</a></li>
+</ol>
+</nav>
+
+<!-- ===================== 1 ===================== -->
+<h2 id="s1">1. Что такое языковая модель в приложении</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> Языковая модель (LLM) — это очень начитанный сотрудник с полной амнезией. Он отлично отвечает на вопрос, но каждый новый вопрос для него — первый в жизни. Всё, что он должен помнить, вы кладёте ему на стол заново: инструкцию, историю разговора, нужные документы.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Схема: контекст на входе, модель, ответ или запрос инструмента на выходе">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <!-- вход -->
+  <rect x="20" y="30" width="200" height="160" rx="10" fill="#fff" stroke="#C9D2DC"/>
+  <text x="120" y="56" text-anchor="middle" font-size="15" font-weight="600" fill="#1B2A41">Контекст (вход)</text>
+  <text x="36" y="86" font-size="13.5" fill="#1B2A41">• системная инструкция</text>
+  <text x="36" y="110" font-size="13.5" fill="#1B2A41">• история диалога</text>
+  <text x="36" y="134" font-size="13.5" fill="#1B2A41">• документы, данные</text>
+  <text x="36" y="158" font-size="13.5" fill="#1B2A41">• описания инструментов</text>
+  <text x="36" y="182" font-size="12.5" fill="#4B5A6E">ограничено «окном контекста»</text>
+  <!-- модель -->
+  <path d="M225 110 H285" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar)"/>
+  <rect x="290" y="70" width="120" height="80" rx="40" fill="#0F766E"/>
+  <text x="350" y="105" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Модель</text>
+  <text x="350" y="126" text-anchor="middle" font-size="12.5" fill="#D8EFEC">генерирует текст</text>
+  <!-- выходы -->
+  <path d="M415 95 C450 70, 460 70, 490 70" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+  <path d="M415 125 C450 150, 460 150, 490 150" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+  <rect x="495" y="45" width="185" height="50" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="587" y="66" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">Ответ пользователю</text>
+  <text x="587" y="84" text-anchor="middle" font-size="12.5" fill="#4B5A6E">обычный текст</text>
+  <rect x="495" y="125" width="185" height="50" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="587" y="146" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">«Вызови инструмент»</text>
+  <text x="587" y="164" text-anchor="middle" font-size="12.5" fill="#4B5A6E">JSON: имя + аргументы</text>
+</svg>
+<figcaption>Модель ничего не делает сама. Она либо отвечает текстом, либо просит ваш код вызвать инструмент. На этой второй возможности построены все агенты.</figcaption>
+</figure>
+
+<h3>Четыре слова, которые нужно знать</h3>
+<ul>
+  <li><span class="term">Окно контекста</span> <span class="en">(context window)</span> — сколько текста модель может «видеть» за один раз. Оно ограничено и стоит денег, поэтому нельзя просто загрузить всю базу знаний компании.</li>
+  <li><span class="term">Токен</span> — единица текста (примерно ¾ слова). За токены платят; по ним считают стоимость агента.</li>
+  <li><span class="term">Вызов инструмента</span> <span class="en">(tool calling, function calling)</span> — модель возвращает не текст, а структурированную просьбу: «вызови функцию <code>get_incidents(company="ДЗО-7")</code>». Вызывает функцию <b>ваш код</b>, результат кладётся обратно в контекст.</li>
+  <li><span class="term">Галлюцинация</span> — уверенный, но выдуманный ответ. Это не ошибка конкретной модели, а свойство технологии; с ним борются средой (RAG, проверки, оценки), а не надеждой на «модель получше».</li>
+</ul>
+
+<!-- ===================== 2 ===================== -->
+<h2 id="s2">2. Агент = модель + среда. Почему «среда важнее модели»</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> Модель — это двигатель. Агент — это автомобиль: двигатель плюс руль, тормоза, приборы и правила дорожного движения. Двигатель сам никуда не едет. В документе Сбера это главный тезис: <mark>модель задаёт минимальное качество, среда определяет, чего можно достичь</mark>.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Схема: модель в центре, вокруг компоненты среды">
+  <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <rect x="20" y="20" width="660" height="260" rx="14" fill="none" stroke="#0F766E" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="40" y="44" font-size="14" font-weight="600" fill="#0F766E">Среда работы агента (harness)</text>
+  <!-- центр -->
+  <rect x="285" y="115" width="130" height="70" rx="35" fill="#0F766E"/>
+  <text x="350" y="146" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Модель</text>
+  <text x="350" y="166" text-anchor="middle" font-size="12" fill="#D8EFEC">сменная деталь</text>
+  <!-- блоки вокруг -->
+  <g font-size="13.5" fill="#1B2A41">
+    <rect x="50" y="70" width="150" height="46" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="125" y="89" text-anchor="middle" font-weight="600">Контекст и память</text>
+    <text x="125" y="107" text-anchor="middle" font-size="12" fill="#4B5A6E">знания компании, история</text>
+
+    <rect x="50" y="185" width="150" height="46" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="125" y="204" text-anchor="middle" font-weight="600">Инструменты</text>
+    <text x="125" y="222" text-anchor="middle" font-size="12" fill="#4B5A6E">API, базы, файлы, CLI</text>
+
+    <rect x="500" y="70" width="150" height="46" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="575" y="89" text-anchor="middle" font-weight="600">Правила и права</text>
+    <text x="575" y="107" text-anchor="middle" font-size="12" fill="#4B5A6E">что можно, что нельзя (R0–R5)</text>
+
+    <rect x="500" y="185" width="150" height="46" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="575" y="204" text-anchor="middle" font-weight="600">Проверки и аудит</text>
+    <text x="575" y="222" text-anchor="middle" font-size="12" fill="#4B5A6E">тесты, оценки, журнал</text>
+
+    <rect x="265" y="230" width="170" height="40" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="350" y="255" text-anchor="middle" font-weight="600">Цикл управления</text>
+  </g>
+  <g stroke="#0F766E" stroke-width="2" fill="none">
+    <path d="M200 93 L285 130" marker-end="url(#ar2)"/>
+    <path d="M200 208 L285 170" marker-end="url(#ar2)"/>
+    <path d="M500 93 L415 130" marker-end="url(#ar2)"/>
+    <path d="M500 208 L415 170" marker-end="url(#ar2)"/>
+    <path d="M350 230 L350 190" marker-end="url(#ar2)"/>
+  </g>
+</svg>
+<figcaption>Всё, что вокруг модели, — среда. Модели меняются каждые несколько месяцев; среда (контекст компании, инструменты, правила, проверки) накапливается годами и остаётся, когда модель заменили.</figcaption>
+</figure>
+
+<h3>Почему это важно для техлида</h3>
+<ul>
+  <li>В документе Сбера приводится наблюдение: разница между лучшей и худшей моделью на одних задачах — единицы процентов, а разница между хорошей и плохой средой для одного разработчика — десятки. <mark>Вкладываться нужно в среду, а не в подписку на модель</mark>.</li>
+  <li>Три обязательных элемента среды (по Сберу): <b>загрузка контекста компании</b> в начале работы (соглашения, архитектура, ограничения); <b>правила-ограничители</b>, которые блокируют недопустимые действия до их выполнения; <b>контрольные точки проверки</b> — задача считается сделанной только после тестов, сборки и проверок, а не по слову агента.</li>
+  <li>Как звучит на собеседовании: «Я бы начал не с выбора модели, а с описания среды: какие инструменты даём агенту, какие права, как проверяем результат и как это логируем».</li>
+</ul>
+
+<!-- ===================== 3 ===================== -->
+<h2 id="s3">3. ReAct: как агент думает и действует</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> ReAct (Reasoning + Acting — «рассуждай и действуй») — это цикл из трёх шагов, который повторяется до результата: <b>подумал → сделал → посмотрел, что получилось</b>. Так работает любой человек, решающий задачу с инструментами: открыл таблицу, посмотрел цифру, понял, что нужен ещё один отчёт, открыл его.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Цикл ReAct: мысль, действие, наблюдение, повтор, ответ">
+  <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <rect x="20" y="95" width="120" height="60" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="80" y="130" text-anchor="middle" font-size="15" font-weight="600" fill="#1B2A41">Задача</text>
+  <path d="M145 125 H180" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar3)"/>
+  <!-- цикл -->
+  <rect x="185" y="95" width="130" height="60" rx="8" fill="#0F766E"/>
+  <text x="250" y="120" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">Мысль</text>
+  <text x="250" y="140" text-anchor="middle" font-size="12" fill="#D8EFEC">что делать дальше?</text>
+  <path d="M320 125 H355" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar3)"/>
+  <rect x="360" y="95" width="130" height="60" rx="8" fill="#fff" stroke="#0F766E" stroke-width="2"/>
+  <text x="425" y="120" text-anchor="middle" font-size="15" font-weight="700" fill="#1B2A41">Действие</text>
+  <text x="425" y="140" text-anchor="middle" font-size="12" fill="#4B5A6E">вызов инструмента</text>
+  <path d="M495 125 H530" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar3)"/>
+  <rect x="535" y="95" width="145" height="60" rx="8" fill="#fff" stroke="#0F766E" stroke-width="2"/>
+  <text x="607" y="120" text-anchor="middle" font-size="15" font-weight="700" fill="#1B2A41">Наблюдение</text>
+  <text x="607" y="140" text-anchor="middle" font-size="12" fill="#4B5A6E">результат инструмента</text>
+  <!-- возврат -->
+  <path d="M607 160 V205 H250 V160" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar3)"/>
+  <text x="430" y="226" text-anchor="middle" font-size="13" fill="#0F766E">повторяем, пока задача не решена (с лимитом итераций)</text>
+  <!-- ответ -->
+  <path d="M250 90 V55 H620" stroke="#0F766E" stroke-width="2.5" fill="none" stroke-dasharray="6 5"/>
+  <path d="M620 55 V92" stroke="#0F766E" stroke-width="2.5" stroke-dasharray="6 5" fill="none"/>
+  <rect x="300" y="18" width="200" height="34" rx="8" fill="#FFE58A"/>
+  <text x="400" y="41" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">Готово → итоговый ответ</text>
+</svg>
+<figcaption>Раньше этот цикл собирали вручную промптами. Сейчас он встроен в модели через tool calling — но идея та же.</figcaption>
+</figure>
+
+<div class="example">
+<div class="who">Пример из вашей будущей области: агент управления ДЗО</div>
+<p><i>Вопрос руководителя:</i> «Какие дочерние общества не сдали отчётность за август и почему?»</p>
+<ol>
+  <li><b>Мысль:</b> нужен список компаний со статусом отчётности. <b>Действие:</b> вызвать <code>get_reporting_status(period="2026-08")</code>. <b>Наблюдение:</b> три компании со статусом «не сдано».</li>
+  <li><b>Мысль:</b> по каждой нужна причина. <b>Действие:</b> вызвать <code>get_tickets(company=…)</code> трижды. <b>Наблюдение:</b> у двух открыты тикеты «нет доступа к порталу», у третьей тикетов нет.</li>
+  <li><b>Мысль:</b> информации достаточно. <b>Ответ:</b> «Не сдали три ДЗО. У двух техническая причина — проблемы с доступом (тикеты №…). По третьей причин в системе нет — рекомендую запросить ответственного».</li>
+</ol>
+</div>
+
+<h3>Где это ломается в реальности</h3>
+<ul>
+  <li><b>Зацикливание</b> — агент повторяет один и тот же вызов. Нужен лимит итераций и бюджет токенов.</li>
+  <li><b>Выдуманный вызов</b> — модель «вызывает» инструмент, которого нет, или с неверными аргументами. Нужна валидация схемы.</li>
+  <li><b>Преждевременная победа</b> (термин из документа Сбера) — агент решил, что задача выполнена, хотя тест не прошёл. Нужны контрольные точки проверки.</li>
+  <li><b>Опасные действия</b> — запись в систему, отправка письма, платёж. Здесь нужен человек в цикле (human-in-the-loop): агент останавливается и ждёт подтверждения.</li>
+</ul>
+
+<!-- ===================== 4 ===================== -->
+<h2 id="s4">4. RAG: экзамен с открытой книгой</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> RAG (Retrieval-Augmented Generation — «генерация с подтягиванием знаний») — это когда модели разрешают открыть книгу перед ответом. Вместо того чтобы отвечать по памяти (и выдумывать), система сначала <b>находит</b> нужные страницы во внутренних документах и только потом <b>формулирует</b> ответ по ним, со ссылками.</p>
+<p>Зачем: у модели нет ваших регламентов, договоров и данных ДЗО. Дообучать модель дорого и медленно. RAG даёт знания «на лету».</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Схема RAG: подготовка документов и ответ на вопрос">
+  <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <!-- верхняя дорожка: подготовка -->
+  <text x="20" y="30" font-size="14" font-weight="600" fill="#4B5A6E">Заранее: подготовка базы знаний</text>
+  <g font-size="13" fill="#1B2A41">
+    <rect x="20" y="45" width="120" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="80" y="68" text-anchor="middle" font-weight="600">Документы</text>
+    <text x="80" y="86" text-anchor="middle" font-size="12" fill="#4B5A6E">PDF, Wiki, БД</text>
+    <path d="M145 73 H175" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="180" y="45" width="120" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="240" y="68" text-anchor="middle" font-weight="600">Нарезка</text>
+    <text x="240" y="86" text-anchor="middle" font-size="12" fill="#4B5A6E">на фрагменты</text>
+    <path d="M305 73 H335" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="340" y="45" width="140" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="410" y="68" text-anchor="middle" font-weight="600">Эмбеддинги</text>
+    <text x="410" y="86" text-anchor="middle" font-size="12" fill="#4B5A6E">смысл → вектор чисел</text>
+    <path d="M485 73 H515" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="520" y="45" width="160" height="56" rx="8" fill="#0F766E"/>
+    <text x="600" y="68" text-anchor="middle" font-weight="700" fill="#fff">Векторная база</text>
+    <text x="600" y="86" text-anchor="middle" font-size="12" fill="#D8EFEC">pgvector, Qdrant, Elastic</text>
+  </g>
+  <!-- нижняя дорожка: запрос -->
+  <text x="20" y="150" font-size="14" font-weight="600" fill="#4B5A6E">В момент вопроса</text>
+  <g font-size="13" fill="#1B2A41">
+    <rect x="20" y="165" width="120" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="80" y="188" text-anchor="middle" font-weight="600">Вопрос</text>
+    <text x="80" y="206" text-anchor="middle" font-size="12" fill="#4B5A6E">пользователя</text>
+    <path d="M145 193 H175" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="180" y="165" width="120" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="240" y="188" text-anchor="middle" font-weight="600">Поиск</text>
+    <text x="240" y="206" text-anchor="middle" font-size="12" fill="#4B5A6E">по смыслу + словам</text>
+    <path d="M305 193 H335" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="340" y="165" width="140" height="56" rx="8" fill="#fff" stroke="#C9D2DC"/>
+    <text x="410" y="188" text-anchor="middle" font-weight="600">Топ-5 фрагментов</text>
+    <text x="410" y="206" text-anchor="middle" font-size="12" fill="#4B5A6E">с фильтром по правам</text>
+    <path d="M485 193 H515" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+    <rect x="520" y="165" width="160" height="56" rx="8" fill="#0F766E"/>
+    <text x="600" y="188" text-anchor="middle" font-weight="700" fill="#fff">Модель</text>
+    <text x="600" y="206" text-anchor="middle" font-size="12" fill="#D8EFEC">вопрос + фрагменты</text>
+  </g>
+  <!-- связь база -> поиск -->
+  <path d="M600 105 V135 H240 V160" stroke="#0F766E" stroke-width="2" fill="none" stroke-dasharray="6 5" marker-end="url(#ar4)"/>
+  <!-- ответ -->
+  <path d="M600 225 V255" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar4)"/>
+  <rect x="380" y="260" width="300" height="50" rx="8" fill="#FFE58A"/>
+  <text x="530" y="281" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">Ответ со ссылками на источники</text>
+  <text x="530" y="299" text-anchor="middle" font-size="12" fill="#1B2A41">«Согласно регламенту №12, п. 4.3 …»</text>
+</svg>
+<figcaption>Два независимых процесса: подготовка базы (делается заранее и обновляется) и ответ на вопрос (за секунды).</figcaption>
+</figure>
+
+<div class="example">
+<div class="who">Пример</div>
+<p><i>Вопрос:</i> «Какой срок согласования сделки свыше 50 млн у дочернего общества?»</p>
+<p>Система находит два фрагмента: пункт из «Положения о сделках» и письмо с уточнением от юридического департамента. Модель отвечает: «10 рабочих дней (Положение, п. 5.2); для ДЗО с иностранным участием — 15 (письмо ЮД от 03.2026)» — и даёт ссылки на оба документа. Без RAG модель назвала бы правдоподобную цифру из головы.</p>
+</div>
+
+<h3>Что отличает рабочий RAG от демонстрации</h3>
+<table>
+<tr><th>Приём</th><th>Зачем</th></tr>
+<tr><td>Гибридный поиск</td><td>Поиск «по смыслу» плохо находит номера договоров, ФИО, артикулы. Добавляют обычный поиск по словам и объединяют результаты.</td></tr>
+<tr><td>Реранкер</td><td>Взять 50 кандидатов, отдельной моделью пересортировать, оставить 5 лучших. Заметно повышает точность.</td></tr>
+<tr><td>Умная нарезка</td><td>Резать по разделам документа, а не по количеству символов; в каждый фрагмент добавлять название документа и раздела.</td></tr>
+<tr><td>Права доступа</td><td>Фильтровать фрагменты по правам пользователя <b>до</b> передачи модели. Иначе сотрудник ДЗО увидит данные другого общества. Для корпоративного контура — критично.</td></tr>
+<tr><td>Переписывание вопроса</td><td>Сложный вопрос разбить на несколько или переформулировать, чтобы поиск нашёл нужное.</td></tr>
+<tr><td>Оценка качества</td><td>Набор из 100–200 «вопрос → правильный ответ» и метрики: нашли ли нужный документ, опирается ли ответ на найденное, а не выдуман.</td></tr>
+</table>
+
+<p><b>Типичные проблемы:</b> плохо распарсили таблицы из PDF; база устарела, а никто не переиндексировал; в документах противоречия; модель хуже читает середину длинного контекста.</p>
+
+<!-- ===================== 5 ===================== -->
+<h2 id="s5">5. MCP: одна розетка для всех инструментов</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> MCP (Model Context Protocol) — стандартный «разъём» между приложением с ИИ и внешними системами. Как USB-C: один раз сделали переходник для Jira — и любой ИИ-инструмент, понимающий MCP, может с Jira работать. Без стандарта каждую интеграцию писали бы заново под каждый ИИ-продукт.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Архитектура MCP: приложение-хост, клиенты, серверы, внешние системы">
+  <defs><marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <!-- host -->
+  <rect x="20" y="40" width="200" height="200" rx="12" fill="#fff" stroke="#0F766E" stroke-width="2"/>
+  <text x="120" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#1B2A41">Приложение (хост)</text>
+  <text x="120" y="86" text-anchor="middle" font-size="12.5" fill="#4B5A6E">ваш портал, IDE, чат</text>
+  <rect x="45" y="100" width="150" height="40" rx="20" fill="#0F766E"/>
+  <text x="120" y="125" text-anchor="middle" font-size="14" font-weight="600" fill="#fff">Модель</text>
+  <rect x="45" y="155" width="150" height="34" rx="6" fill="#F1F4F7" stroke="#C9D2DC"/>
+  <text x="120" y="177" text-anchor="middle" font-size="12.5" fill="#1B2A41">MCP-клиент → сервер А</text>
+  <rect x="45" y="196" width="150" height="34" rx="6" fill="#F1F4F7" stroke="#C9D2DC"/>
+  <text x="120" y="218" text-anchor="middle" font-size="12.5" fill="#1B2A41">MCP-клиент → сервер Б</text>
+  <!-- servers -->
+  <path d="M195 172 H290" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar5)" marker-start="url(#ar5)"/>
+  <path d="M195 213 H290" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar5)" marker-start="url(#ar5)"/>
+  <text x="243" y="160" text-anchor="middle" font-size="11.5" fill="#4B5A6E">JSON-RPC</text>
+  <rect x="295" y="150" width="150" height="44" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="370" y="169" text-anchor="middle" font-size="13.5" font-weight="600" fill="#1B2A41">MCP-сервер А</text>
+  <text x="370" y="186" text-anchor="middle" font-size="12" fill="#4B5A6E">обёртка над Jira</text>
+  <rect x="295" y="200" width="150" height="44" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="370" y="219" text-anchor="middle" font-size="13.5" font-weight="600" fill="#1B2A41">MCP-сервер Б</text>
+  <text x="370" y="236" text-anchor="middle" font-size="12" fill="#4B5A6E">обёртка над базой ДЗО</text>
+  <!-- systems -->
+  <path d="M450 172 H520" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar5)"/>
+  <path d="M450 222 H520" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar5)"/>
+  <rect x="525" y="150" width="155" height="44" rx="8" fill="#F1F4F7" stroke="#C9D2DC"/>
+  <text x="602" y="177" text-anchor="middle" font-size="13.5" fill="#1B2A41">Jira</text>
+  <rect x="525" y="200" width="155" height="44" rx="8" fill="#F1F4F7" stroke="#C9D2DC"/>
+  <text x="602" y="227" text-anchor="middle" font-size="13.5" fill="#1B2A41">PostgreSQL / 1С / SAP</text>
+  <!-- что отдаёт сервер -->
+  <rect x="295" y="40" width="385" height="90" rx="8" fill="#fff" stroke="#C9D2DC" stroke-dasharray="5 4"/>
+  <text x="310" y="62" font-size="13.5" font-weight="600" fill="#1B2A41">Что сервер предоставляет клиенту</text>
+  <text x="310" y="84" font-size="12.5" fill="#1B2A41"><tspan font-weight="600">Tools</tspan> — действия («создай тикет»); их вызывает модель</text>
+  <text x="310" y="102" font-size="12.5" fill="#1B2A41"><tspan font-weight="600">Resources</tspan> — данные для чтения; их подкладывает приложение</text>
+  <text x="310" y="120" font-size="12.5" fill="#1B2A41"><tspan font-weight="600">Prompts</tspan> — готовые шаблоны запросов; их выбирает человек</text>
+</svg>
+<figcaption>Хост держит модель и по одному клиенту на каждый сервер. Сервер — тонкая обёртка над реальной системой. Список инструментов клиент получает от сервера автоматически и передаёт модели.</figcaption>
+</figure>
+
+<h3>Чем MCP отличается от обычного вызова инструментов</h3>
+<p>Вызов инструмента (tool calling) — это <i>как модель просит</i> что-то сделать. MCP — это <i>как инструменты стандартно описываются, находятся и подключаются</i> между разными приложениями и поставщиками. Первое — механизм модели, второе — протокол интеграции.</p>
+
+<h3>О чём спросят и что ответить</h3>
+<ul>
+  <li><b>Безопасность.</b> Сторонний MCP-сервер — это чужой код с доступом к вашим данным. Риски: вредоносные описания инструментов, которые «уговаривают» модель сделать лишнее (tool poisoning); утечка данных через инструмент. Меры: только проверенные серверы, авторизация (OAuth 2.1 для удалённых), минимальные права, журнал вызовов.</li>
+  <li><b>Перегрузка контекста.</b> Подключили 10 серверов — модель получила 200 описаний инструментов и стала путаться. Нужно отбирать инструменты под задачу.</li>
+  <li><b>Позиция Сбера</b> (полезно упомянуть): там, где есть нативная интеграция через API, она надёжнее MCP — модель может проигнорировать MCP-источник даже при явной инструкции. MCP оставляют для подключения разнородных внешних источников, и это осознанный компромисс, который фиксируют в архитектурном решении (ADR). Это зрелая, не «хайповая» позиция — хорошо выглядит на собеседовании.</li>
+  <li><b>Рядом с MCP:</b> A2A — протокол общения агента с агентом (передача задачи между агентами); AG-UI — агент ↔ интерфейс пользователя. Сбер упоминает все три как основу протокольного слоя платформы.</li>
+</ul>
+
+<!-- ===================== 6 ===================== -->
+<h2 id="s6">6. LangChain и LangGraph: конвейер и блок-схема</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> <b>LangChain</b> — набор готовых деталей (подключение к моделям, шаблоны запросов, загрузчики документов, поиск) и способ склеить их в прямую цепочку: запрос → модель → разбор ответа. Хорош для RAG и линейных сценариев.</p>
+<p><b>LangGraph</b> — та же команда, но для агентов. Логика описывается как <b>блок-схема</b>: узлы (что делаем), стрелки (куда идём дальше), условия (если модель попросила инструмент — идём к инструментам, иначе — заканчиваем). Главное отличие от цепочки — <mark>разрешены циклы и состояние сохраняется после каждого шага</mark>.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Граф LangGraph: старт, агент, условие, инструменты, подтверждение человека, конец; состояние сохраняется">
+  <defs><marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <rect x="20" y="16" width="660" height="56" rx="8" fill="#fff" stroke="#C9D2DC" stroke-dasharray="5 4"/>
+  <text x="35" y="38" font-size="13.5" font-weight="600" fill="#1B2A41">State — общее состояние, которое передаётся между узлами</text>
+  <text x="35" y="59" font-size="12.5" fill="#4B5A6E">{ сообщения, задача, документы, статус подтверждения } — сохраняется после каждого шага (checkpointer)</text>
+  <circle cx="60" cy="180" r="22" fill="#1B2A41"/>
+  <text x="60" y="185" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">старт</text>
+  <path d="M85 180 H140" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar6)"/>
+  <rect x="145" y="150" width="120" height="60" rx="8" fill="#0F766E"/>
+  <text x="205" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">Агент</text>
+  <text x="205" y="195" text-anchor="middle" font-size="12" fill="#D8EFEC">вызов модели</text>
+  <path d="M270 180 H315" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar6)"/>
+  <polygon points="380,140 440,180 380,220 320,180" fill="#FFE58A"/>
+  <text x="380" y="176" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1B2A41">нужен</text>
+  <text x="380" y="192" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1B2A41">инструмент?</text>
+  <path d="M380 138 V122 H515" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar6)"/>
+  <text x="450" y="114" text-anchor="middle" font-size="12" fill="#0F766E">да</text>
+  <rect x="520" y="100" width="150" height="44" rx="8" fill="#fff" stroke="#0F766E" stroke-width="2"/>
+  <text x="595" y="119" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">Инструменты</text>
+  <text x="595" y="136" text-anchor="middle" font-size="12" fill="#4B5A6E">выполнить вызовы</text>
+  <path d="M595 98 V86 H205 V145" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar6)"/>
+  <text x="400" y="80" text-anchor="middle" font-size="12" fill="#0F766E">результат → снова к агенту (цикл)</text>
+  <path d="M380 222 V246 H515" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar6)"/>
+  <text x="450" y="238" text-anchor="middle" font-size="12" fill="#0F766E">нет</text>
+  <rect x="520" y="222" width="150" height="50" rx="8" fill="#fff" stroke="#C9D2DC"/>
+  <text x="595" y="242" text-anchor="middle" font-size="13.5" font-weight="600" fill="#1B2A41">Пауза: человек</text>
+  <text x="595" y="260" text-anchor="middle" font-size="12" fill="#4B5A6E">подтверждает (interrupt)</text>
+  <path d="M670 247 C700 247, 700 305, 660 305 L118 305" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#ar6)"/>
+  <circle cx="90" cy="305" r="20" fill="#1B2A41"/>
+  <text x="90" y="310" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">конец</text>
+</svg>
+<figcaption>Классический агентный граф. Узел «Агент» и узел «Инструменты» ходят по кругу, пока модель не решит, что готово. Перед опасным действием граф можно остановить и дождаться человека, а потом продолжить с того же места — потому что состояние сохранено.</figcaption>
+</figure>
+
+<h3>Словарь LangGraph за минуту</h3>
+<table>
+<tr><th>Понятие</th><th>Что это простыми словами</th></tr>
+<tr><td>State</td><td>Общая «папка с делом», которая передаётся из узла в узел. Типизированный объект: сообщения, найденные документы, статусы.</td></tr>
+<tr><td>Node</td><td>Один шаг: вызвать модель, выполнить инструмент, проверить результат. Обычная функция, которая принимает состояние и возвращает изменения.</td></tr>
+<tr><td>Edge / conditional edge</td><td>Стрелка между шагами. Условная стрелка — ветвление по результату предыдущего шага.</td></tr>
+<tr><td>Checkpointer</td><td>Сохранение состояния после каждого шага в базу (Postgres, Redis). Даёт возобновление после сбоя, много пользователей одновременно, «откат в прошлое» для разбора.</td></tr>
+<tr><td>Interrupt</td><td>Пауза графа до решения человека — основа «человек в цикле».</td></tr>
+<tr><td>Subgraph</td><td>Граф внутри графа — так собирают мультиагентные схемы.</td></tr>
+<tr><td>LangSmith / Langfuse</td><td>Трассировка каждого шага, стоимость, наборы для оценки качества. Langfuse — открытый аналог.</td></tr>
+</table>
+
+<h3>Честный ответ на «зачем фреймворк, если можно написать цикл while»</h3>
+<p>Для простого агента с двумя инструментами — можно, и это лучше. LangGraph окупается, когда появляются <b>долгие задачи</b> (нужно переживать сбои), <b>ветвления</b> и <b>участие человека</b> — тогда сохранение состояния, паузы и трассировка «из коробки» экономят недели. Альтернативы, о которых стоит знать: CrewAI, AutoGen (AG2), OpenAI Agents SDK, Pydantic AI, Google ADK, Semantic Kernel.</p>
+
+<!-- ===================== 7 ===================== -->
+<h2 id="s7">7. Шесть паттернов агентных систем</h2>
+
+<div class="plain">
+<p><b>Простыми словами.</b> Не всё, что использует модель, — агент. Есть шесть базовых способов организовать работу, от самого простого к самому свободному. Документ Сбера использует именно эту классификацию (она идёт от Anthropic) и добавляет к каждому паттерну <b>характерный способ поломки</b>.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Шесть паттернов: цепочка, маршрутизация, параллель, оркестратор и рабочие, оценщик и оптимизатор, автономный агент">
+  <defs><marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <g font-size="13" fill="#1B2A41" font-weight="600">
+    <!-- 1 цепочка -->
+    <text x="20" y="18">1. Цепочка</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <rect x="20" y="42" width="40" height="26" rx="5"/><rect x="85" y="42" width="40" height="26" rx="5"/><rect x="150" y="42" width="40" height="26" rx="5"/>
+      <path d="M62 55 H83" marker-end="url(#ar7)"/><path d="M127 55 H148" marker-end="url(#ar7)"/>
+    </g>
+    <text x="20" y="92" font-weight="400" font-size="12" fill="#4B5A6E">шаг → шаг → шаг</text>
+    <!-- 2 маршрутизация -->
+    <text x="250" y="18">2. Маршрутизация</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <polygon points="250,55 270,40 290,55 270,70" fill="#FFE58A" stroke="none"/>
+      <rect x="320" y="30" width="40" height="20" rx="5"/><rect x="320" y="58" width="40" height="20" rx="5"/><rect x="320" y="86" width="40" height="20" rx="5"/>
+      <path d="M292 52 L318 40" marker-end="url(#ar7)"/><path d="M292 55 H318" marker-end="url(#ar7)"/><path d="M292 58 L318 96" marker-end="url(#ar7)"/>
+    </g>
+    <text x="250" y="122" font-weight="400" font-size="12" fill="#4B5A6E">классифицировал → отдал нужному</text>
+    <!-- 3 параллель -->
+    <text x="480" y="18">3. Параллель</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <rect x="480" y="30" width="40" height="20" rx="5"/><rect x="480" y="58" width="40" height="20" rx="5"/><rect x="480" y="86" width="40" height="20" rx="5"/>
+      <rect x="570" y="55" width="50" height="26" rx="5"/>
+      <path d="M522 40 L568 60" marker-end="url(#ar7)"/><path d="M522 68 H568" marker-end="url(#ar7)"/><path d="M522 96 L568 76" marker-end="url(#ar7)"/>
+    </g>
+    <text x="480" y="122" font-weight="400" font-size="12" fill="#4B5A6E">независимо → объединить</text>
+
+    <!-- 4 оркестратор -->
+    <text x="20" y="170">4. Оркестратор и рабочие</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <rect x="20" y="185" width="70" height="30" rx="6" fill="#0F766E"/>
+      <rect x="130" y="178" width="50" height="20" rx="5"/><rect x="130" y="206" width="50" height="20" rx="5"/><rect x="130" y="234" width="50" height="20" rx="5"/>
+      <path d="M92 195 L128 188" marker-end="url(#ar7)"/><path d="M92 200 L128 216" marker-end="url(#ar7)"/><path d="M92 205 L128 244" marker-end="url(#ar7)"/>
+      <path d="M128 192 L92 199" marker-end="url(#ar7)" stroke-dasharray="3 3"/>
+    </g>
+    <text x="55" y="205" text-anchor="middle" font-size="11" fill="#fff">главный</text>
+    <text x="20" y="272" font-weight="400" font-size="12" fill="#4B5A6E">разбил задачу на ходу, раздал, собрал</text>
+    <!-- 5 оценщик -->
+    <text x="250" y="170">5. Оценщик и оптимизатор</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <rect x="250" y="190" width="70" height="28" rx="6"/><rect x="360" y="190" width="70" height="28" rx="6"/>
+      <path d="M322 198 H358" marker-end="url(#ar7)"/><path d="M358 212 H322" marker-end="url(#ar7)"/>
+    </g>
+    <text x="285" y="209" text-anchor="middle" font-size="11">делает</text>
+    <text x="395" y="209" text-anchor="middle" font-size="11">проверяет</text>
+    <text x="250" y="245" font-weight="400" font-size="12" fill="#4B5A6E">переделывай, пока не пройдёт критерий</text>
+    <!-- 6 автономный -->
+    <text x="480" y="170">6. Автономный агент</text>
+    <g stroke="#0F766E" stroke-width="2" fill="#fff">
+      <rect x="500" y="185" width="70" height="30" rx="15" fill="#0F766E"/>
+      <path d="M572 200 C610 200, 610 240, 572 240" fill="none" marker-end="url(#ar7)"/>
+      <path d="M498 240 C460 240, 460 200, 498 200" fill="none" marker-end="url(#ar7)"/>
+      <rect x="500" y="228" width="70" height="24" rx="5"/>
+    </g>
+    <text x="535" y="205" text-anchor="middle" font-size="11" fill="#fff">агент</text>
+    <text x="535" y="245" text-anchor="middle" font-size="11">среда</text>
+    <text x="480" y="272" font-weight="400" font-size="12" fill="#4B5A6E">сам решает, что делать</text>
+  </g>
+  <!-- шкала -->
+  <path d="M20 320 H680" stroke="#0F766E" stroke-width="3" marker-end="url(#ar7)"/>
+  <text x="20" y="345" font-size="12.5" fill="#1B2A41">Предсказуемо, дёшево, легко отлаживать</text>
+  <text x="680" y="345" text-anchor="end" font-size="12.5" fill="#1B2A41">Гибко, дорого, сложно контролировать</text>
+  <rect x="20" y="365" width="660" height="40" rx="8" fill="#FFE58A"/>
+  <text x="350" y="390" text-anchor="middle" font-size="13.5" font-weight="600" fill="#1B2A41">Правило: начинать слева. Вправо двигаться только когда простое не решает задачу.</text>
+</svg>
+<figcaption>Паттерны 1–3 — это «рабочие потоки» (workflow): путь задан заранее. Паттерны 4–6 — «агенты»: путь выбирает модель по ходу.</figcaption>
+</figure>
+
+<table>
+<tr><th>Паттерн</th><th>Когда уместен</th><th>Как ломается (по Сберу)</th></tr>
+<tr><td>Цепочка</td><td>Линейные задачи с известным порядком шагов</td><td>Ошибка на раннем шаге накапливается по цепочке</td></tr>
+<tr><td>Маршрутизация</td><td>Классифицировать запрос и отдать нужному обработчику</td><td>Ошибки классификации на пограничных случаях</td></tr>
+<tr><td>Параллель</td><td>Независимые подзадачи с объединением результата</td><td>Ветки дают несогласованные результаты</td></tr>
+<tr><td>Оркестратор и рабочие</td><td>Сложные задачи, которые нужно разбивать по ходу</td><td>Накладные расходы на координацию, примерно в 15 раз больше токенов</td></tr>
+<tr><td>Оценщик и оптимизатор</td><td>Итеративное улучшение по чёткому критерию</td><td>Цикл не сходится</td></tr>
+<tr><td>Автономный агент</td><td>Открытые задачи с инструментами и средой</td><td>Выдуманные вызовы инструментов, сломанное окружение</td></tr>
+</table>
+
+<h3>Мультиагентные системы: когда одного агента мало</h3>
+<p>Один агент живёт в одном окне контекста. Для большой задачи окно либо кончается, либо забивается шумом. Тогда подзадачи отдают <b>субагентам с отдельными окнами контекста</b>: главный контекст остаётся чистым, работа идёт параллельно, сбой одного не рушит всё. В документе Сбера даны практические правила:</p>
+<ul>
+  <li><mark>60–70% задач должны оставаться за одним агентом</mark>. Схема «координатор и исполнители» — для задач из трёх и более фаз; полный «оркестр» из пяти и более ролей — только на высшем уровне зрелости.</li>
+  <li>Не использовать мультиагентную схему для коротких задач (до 30 минут) — накладные расходы съедят выигрыш.</li>
+  <li>Правило делегирования: если есть специализированный исполнитель — не делать самому; если задача не влезает в окно контекста — это сигнал, что пора разбивать.</li>
+  <li>Обязательная роль — <b>агент-ревьюер</b>: проверяет результат агента-разработчика до человека и до проверок безопасности.</li>
+</ul>
+
+<!-- ===================== 8 ===================== -->
+<h2 id="s8">8. Методология Сбера: что знать к собеседованию</h2>
+
+<p>Документ «AI-Disrupt PDLC» — это не про то, как писать агентов, а про то, как перестроить процесс разработки, когда агенты делают значительную часть работы. Для вашей вакансии (агентизация разработки, AI-native практики) это прямая тема. Ниже — шесть идей, которые стоит уметь пересказать своими словами.</p>
+
+<h3>8.1 Две петли и два сквозных контура</h3>
+<figure>
+<svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Двухпетлевая модель: петля намерения человека и петля реализации агента, сквозные контуры валидации и управления">
+  <defs><marker id="ar8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0F766E"/></marker></defs>
+  <!-- петля намерения -->
+  <rect x="20" y="40" width="300" height="150" rx="12" fill="#fff" stroke="#1B2A41" stroke-width="2"/>
+  <text x="170" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#1B2A41">Петля намерения — человек</text>
+  <text x="170" y="86" text-anchor="middle" font-size="12.5" fill="#4B5A6E">дни / недели</text>
+  <g font-size="12.5" fill="#1B2A41">
+    <rect x="40" y="105" width="120" height="30" rx="6" fill="#F1F4F7" stroke="#C9D2DC"/><text x="100" y="125" text-anchor="middle">Исследование</text>
+    <rect x="180" y="105" width="120" height="30" rx="6" fill="#F1F4F7" stroke="#C9D2DC"/><text x="240" y="125" text-anchor="middle">Спецификация</text>
+    <rect x="40" y="148" width="260" height="30" rx="6" fill="#F1F4F7" stroke="#C9D2DC"/><text x="170" y="168" text-anchor="middle">Критерии приёмки, что делегировать</text>
+    <path d="M162 120 H178" stroke="#0F766E" stroke-width="2" marker-end="url(#ar8)"/>
+  </g>
+  <!-- петля реализации -->
+  <rect x="380" y="40" width="300" height="150" rx="12" fill="#fff" stroke="#0F766E" stroke-width="2"/>
+  <text x="530" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#0F766E">Петля реализации — агент</text>
+  <text x="530" y="86" text-anchor="middle" font-size="12.5" fill="#4B5A6E">минуты / часы</text>
+  <g font-size="12.5" fill="#1B2A41">
+    <rect x="400" y="105" width="260" height="30" rx="6" fill="#D8EFEC" stroke="#0F766E"/><text x="530" y="125" text-anchor="middle">Внутренний цикл: правка → тест → фикс</text>
+    <rect x="400" y="148" width="260" height="30" rx="6" fill="#D8EFEC" stroke="#0F766E"/><text x="530" y="168" text-anchor="middle">Внешний цикл: сессии и контрольные точки</text>
+  </g>
+  <!-- стрелки между -->
+  <path d="M322 100 H375" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar8)"/>
+  <text x="348" y="94" text-anchor="middle" font-size="11" fill="#4B5A6E">спец.</text>
+  <path d="M375 150 H322" stroke="#0F766E" stroke-width="2.5" marker-end="url(#ar8)"/>
+  <text x="348" y="166" text-anchor="middle" font-size="10" fill="#4B5A6E">телеметрия</text>
+  <!-- сквозные -->
+  <rect x="20" y="215" width="660" height="40" rx="8" fill="#FFE58A"/>
+  <text x="350" y="240" text-anchor="middle" font-size="14" font-weight="600" fill="#1B2A41">Контур валидации — «правильно ли сделано?» — встроен в обе петли</text>
+  <rect x="20" y="265" width="660" height="40" rx="8" fill="#1B2A41"/>
+  <text x="350" y="290" text-anchor="middle" font-size="14" font-weight="600" fill="#fff">Контур управления — «по правилам ли?» — права, политики, аудит</text>
+</svg>
+<figcaption>Метафора Сбера — Формула-1: команда в боксах планирует (намерение), пилот ведёт (реализация), телеметрия проверяет (валидация), регламент и стены трассы ограничивают (управление). Всё работает одновременно, а не по очереди.</figcaption>
+</figure>
+<p>Почему валидация не «третья петля»: если сделать отдельную стадию ревью, скорость агентов упирается в скорость людей-ревьюеров, и появляется новое узкое место. Поэтому проверки встраивают в каждый шаг: агент-ревьюер после каждой итерации, проверки безопасности перед контрольной точкой, барьер перед слиянием. Сбер называет целевое состояние <b>Zero Friction</b> — путь от намерения до релиза без организационных швов.</p>
+
+<h3>8.2 Три разные шкалы, которые путают</h3>
+<table>
+<tr><th>Шкала</th><th>Что измеряет</th><th>Крайние значения</th></tr>
+<tr><td>Горизонт задачи (L1–L5)</td><td>Как долго агент работает сам</td><td>L1 — автодополнение (секунды); L3 — сессия 30 мин – 2 ч; L5 — команды агентов, многодневные задачи с передачей между агентами</td></tr>
+<tr><td>Зрелость команды (L0–L5)</td><td>Насколько организация готова</td><td>L0 — нет практики; L3 — спецификации внедрены, агенты работают в ветках под ревью; L5 — скоординированные команды агентов</td></tr>
+<tr><td>Права агента (R0–R5)</td><td>Что агенту разрешено</td><td>R0 — только подсказывает; R2–R3 — работает сам, ревью перед слиянием; R5 — автономно в очерченной области</td></tr>
+</table>
+<p>Важная мысль: <mark>уровень прав — функция задачи, а не агента</mark>. Один и тот же агент действует на R3 при рефакторинге и автоматически опускается до R1, когда касается персональных данных. Профиль песочницы (PROD / DEV / R&amp;D) выбирается на старте по критичности данных, обратимости действий и доверию к источнику спецификации.</p>
+
+<h3>8.3 Контекст-инжиниринг и сжатие контекста</h3>
+<p>Долгие задачи переполняют окно контекста. Сбер описывает пять уровней сжатия: сырой журнал → структурированные записи вызовов (JSON) → текстовые сводки каждые N сообщений → устойчивые заметки в файлах (progress.md, NOTES.md) → типизированная память (факты с типом: задача, файл, решение, результат теста), доступная поиском между сессиями. Сжатие начинается примерно при 30% заполнения окна. Качество измеряют долей сессий без искажения смысла и ростом галлюцинаций с длиной сессии.</p>
+
+<h3>8.4 Протокол передачи сессии</h3>
+<p>Чтобы агент «завтра» продолжил работу «сегодняшнего», между сессиями передают четыре артефакта: скрипт восстановления окружения (init.sh), человекочитаемый файл прогресса (progress.md), машиночитаемый список оставшихся подзадач (feature-list.json) и указатель на проверочный пакет. Плюс политика контрольных точек: каждые N минут или M итераций — автосохранение. Без этого один сбой теряет всю ночную работу.</p>
+
+<h3>8.5 Разработка через оценки и проверочный пакет</h3>
+<p>Результат агента недетерминирован, поэтому разовый приёмочный тест заменяют статистической проверкой — <b>eval-driven development</b>. Четыре класса оценок: <b>способностей</b> (штатное поведение, 100% критериев приёмки), <b>регрессий</b> (не сломали старое, порог ≥ 95%), <b>длины сессии</b> (сколько галлюцинаций на длинном горизонте), <b>эскалации</b> (умеет ли агент вовремя сказать «не знаю, нужен человек»).</p>
+<p>Задача считается завершённой только при собранном <b>проверочном пакете</b> (Evidence Bundle): diff и ссылка на PR, результаты всех оценок, отчёт о токенах, журнал сессии, отметки агента-ревьюера и шлюзов, обоснование действий, вклад в результат, ссылка на бизнес-исход.</p>
+
+<h3>8.6 Агенты-стражи и усталость от подтверждений</h3>
+<p><b>Guardian Agents</b> — агенты, которые сами ничего не делают, а следят за другими: наблюдают (мониторинг в проде), перехватывают (блокируют опасное действие до выполнения) или корректируют (вмешиваются в рассуждение). Они нужны, потому что статические проверки (линтеры, SAST) не ловят поведенческие ошибки агента — нежелательную цепочку вызовов или преждевременное завершение.</p>
+<p><b>Approval fatigue</b> — когда запросов на подтверждение слишком много, люди начинают жать «ОК» не читая, и контроль превращается в формальность. Поэтому эскалацию тоже оценивают: не эскалировать по пустякам так же важно, как эскалировать в нужный момент.</p>
+
+<h3>8.7 Антипаттерны первого года (пригодится как «что бы я не делал»)</h3>
+<ul>
+  <li>Имитация: ИИ-нативный процесс поверх старых процедур согласования.</li>
+  <li>Преждевременное масштабирование автономии без готовой среды и оценок («перелёт по горизонту»).</li>
+  <li>Одиночный длинный прогон без контрольных точек.</li>
+  <li>Надежда на полную делегацию: ИИ участвует в ~60% работы, но полностью делегируют 0–20% задач — этот разрыв структурный, его закрывают явной картой «что делегируем, что проверяет человек».</li>
+  <li>Сложная оркестрация ради оркестрации — вне бигтеха стоимость координации агентов превышает выигрыш.</li>
+</ul>
+
+<!-- ===================== 9 ===================== -->
+<h2 id="s9">9. Java/Kotlin-стек: Spring AI и LangChain4j</h2>
+<p>В требованиях вакансии Java/Kotlin обязателен, поэтому ждите вопрос «как это встроить в наш стек».</p>
+<table>
+<tr><th>Библиотека</th><th>Что даёт</th></tr>
+<tr><td>Spring AI</td><td>ChatClient для вызова моделей, инструменты через аннотацию @Tool, Advisors (готовые RAG и память), единая абстракция VectorStore над pgvector / Qdrant / Elasticsearch, поддержка MCP-клиента и сервера. Естественный выбор для Spring Boot.</td></tr>
+<tr><td>LangChain4j</td><td>Java-аналог LangChain: декларативные AiServices (описали интерфейс — получили реализацию), компоненты RAG, инструменты, MCP-клиент; интеграции со Spring Boot и Quarkus.</td></tr>
+</table>
+<p><b>Типовая архитектура для вашего случая:</b> бизнес-логика, права и инструменты — на JVM (Spring Boot), опубликованы как MCP-сервер или REST; агентный слой — либо на Spring AI, либо на Python/LangGraph, если нужны сложные графы и наблюдаемость. Иметь мнение «когда что» — плюс: например, «инструменты и данные держу на JVM, где уже есть безопасность и транзакции; оркестрацию агентов начну на Spring AI и перейду на LangGraph, если понадобятся длинные сессии с паузами».</p>
+
+<!-- ===================== 10 ===================== -->
+<h2 id="s10">10. Вопросы и ответы</h2>
+<p class="tip">Нажмите на вопрос, чтобы открыть ответ. Сначала попробуйте ответить сами — это лучший способ подготовиться. Ответы — образец структуры, а не текст для заучивания: подставляйте свои примеры.</p>
+
+<h3>Базовые понятия</h3>
+
+<details><summary>Что такое агент и чем он отличается от чат-бота?</summary><div class="a">
+<p>Чат-бот отвечает текстом на текст. Агент получает цель, сам решает, какие шаги нужны, вызывает инструменты (API, базы, файлы), смотрит на результат и повторяет, пока цель не достигнута. Технически агент = модель + цикл «мысль → действие → наблюдение» + инструменты + память + правила. Ключевое отличие: путь выполнения определяет модель во время работы, а не разработчик заранее.</p>
+</div></details>
+
+<details><summary>Почему говорят «среда важнее модели»? Вы согласны?</summary><div class="a">
+<p>Согласен. Модели меняются каждые несколько месяцев и различаются на одних задачах на единицы процентов. А то, что вокруг модели — контекст компании, инструменты, права, проверки, журнал — накапливается годами и определяет, будет ли результат предсказуемым. Практический вывод: инвестировать в среду (платформу), чтобы менять модель «под капотом» без перестройки процессов. В методологии Сбера это первый архитектурный принцип.</p>
+</div></details>
+
+<details><summary>Что такое tool calling и как он работает?</summary><div class="a">
+<p>Мы описываем модели набор функций с их параметрами (в виде JSON-схемы). Модель, если решает, что функция нужна, возвращает не текст, а структурированный запрос: имя функции и аргументы. Наш код вызывает функцию, результат добавляем в контекст, модель продолжает. Модель сама ничего не выполняет — только просит. Это важно для безопасности: все проверки прав и валидация аргументов — на нашей стороне.</p>
+</div></details>
+
+<h3>RAG</h3>
+
+<details><summary>Объясните RAG за минуту. Зачем он нужен, если модель и так «всё знает»?</summary><div class="a">
+<p>Модель не знает наших внутренних документов, а дообучать её на них дорого, медленно и небезопасно. RAG — «экзамен с открытой книгой»: заранее индексируем документы (нарезаем на фрагменты, превращаем в векторы), в момент вопроса находим 5–10 релевантных фрагментов и даём модели ответить по ним со ссылками. Плюсы: актуальность, ссылки на источник, меньше выдумок, управление доступом.</p>
+</div></details>
+
+<details><summary>Какие проблемы у наивного RAG и как вы их решаете?</summary><div class="a">
+<p>Поиск по смыслу не находит точные идентификаторы — добавляю поиск по ключевым словам (гибрид). Плохая точность топ-5 — ставлю реранкер. Фрагменты без контекста — режу по структуре документа и добавляю заголовки. Утечка данных между подразделениями — фильтрую по правам до генерации. Нет понимания, стало ли лучше — собираю набор из 100–200 вопросов с эталонными ответами и меряю recall поиска и «опирается ли ответ на найденное». Часто главная боль не модель, а парсинг PDF и таблиц.</p>
+</div></details>
+
+<details><summary>Как вы измеряете качество RAG-системы?</summary><div class="a">
+<p>Разделяю поиск и генерацию. Для поиска: нашли ли нужный документ в топ-k (recall@k). Для генерации: faithfulness — ответ опирается на найденные фрагменты, а не выдуман; relevance — отвечает ли на вопрос. Нужен эталонный набор вопросов от бизнеса. Инструменты: RAGAS, DeepEval или собственный скрипт с моделью-судьёй. Метрики гоняю в CI, чтобы изменение чанкинга или модели не ухудшило качество незаметно.</p>
+</div></details>
+
+<h3>Агенты и ReAct</h3>
+
+<details><summary>Что такое ReAct?</summary><div class="a">
+<p>Паттерн, когда модель чередует рассуждение и действие: думает, что делать, вызывает инструмент, смотрит результат, думает дальше — до финального ответа. Раньше собирали промптами, сейчас встроено в модели через tool calling. Главные риски: зацикливание (нужен лимит итераций и бюджет), выдуманные вызовы (валидация схемы), преждевременное «готово» (контрольные точки проверки).</p>
+</div></details>
+
+<details><summary>Когда нужен агент, а когда достаточно обычного пайплайна?</summary><div class="a">
+<p>Если шаги известны заранее — делаю детерминированный рабочий поток (workflow) с вызовами модели в нужных узлах: дешевле, предсказуемее, легче отлаживать. Агент — когда путь реально непредсказуем: открытые задачи, много инструментов, неизвестно, сколько шагов. Правило: начинать с простого, усложнять только когда простое не решает. В классификации из шести паттернов — идти слева направо.</p>
+</div></details>
+
+<details><summary>Когда переходить к мультиагентной схеме?</summary><div class="a">
+<p>Когда одного окна контекста не хватает или задача состоит из трёх и более разных фаз с разной специализацией (написать → протестировать → проверить). Тогда координатор раздаёт подзадачи субагентам с отдельными контекстами. Но это дорого — по данным Сбера, примерно в 15 раз больше токенов — и 60–70% задач должны оставаться за одним агентом. Для задач короче 30 минут мультиагентность не окупается.</p>
+</div></details>
+
+<details><summary>Как обеспечить безопасность агента, который может выполнять действия?</summary><div class="a">
+<p>Несколько слоёв. Права зависят от задачи, а не от агента: рефакторинг в ветке — можно самому, работа с персональными данными или продом — только предложение с подтверждением (лестница R0–R5). Опасные действия — человек в цикле, агент останавливается и ждёт. Данные, которые пришли из инструментов, считаю недоверенным вводом (защита от инъекций в промпт). Каждый шаг пишется в журнал. Агент-ревьюер проверяет результат до человека. И отдельно слежу, чтобы подтверждений не стало слишком много — иначе люди перестают их читать.</p>
+</div></details>
+
+<h3>MCP</h3>
+
+<details><summary>Что такое MCP и чем он отличается от function calling?</summary><div class="a">
+<p>Function calling — как модель просит вызвать инструмент. MCP — стандарт, как инструменты и данные описываются и подключаются к любому ИИ-приложению. Архитектура: приложение-хост с моделью держит MCP-клиентов, каждый общается с MCP-сервером — обёрткой над реальной системой (Jira, база, 1С). Сервер отдаёт tools (действия), resources (данные) и prompts (шаблоны). Смысл: один раз сделали сервер для системы — его использует любой клиент.</p>
+</div></details>
+
+<details><summary>Какие риски MCP и как к нему относиться в корпоративном контуре?</summary><div class="a">
+<p>Сторонний сервер — чужой код с доступом к данным: риск вредоносных описаний инструментов и утечек. Поэтому: только проверенные или собственные серверы, авторизация, минимальные права, журнал вызовов. Второй риск — перегрузка контекста сотнями инструментов; нужно отбирать под задачу. Разделяю позицию Сбера: где есть нативная интеграция через API — она надёжнее, модель может проигнорировать MCP-источник. MCP хорош для подключения разнородных внешних систем, и этот выбор фиксирую в архитектурном решении.</p>
+</div></details>
+
+<h3>LangGraph и инструменты</h3>
+
+<details><summary>Зачем LangGraph, если можно написать цикл while?</summary><div class="a">
+<p>Для маленького агента цикл лучше — меньше зависимостей. LangGraph окупается, когда нужны: сохранение состояния после каждого шага (пережить сбой, возобновить, разобрать инцидент), паузы для подтверждения человеком с продолжением с того же места, ветвления и подграфы для многоагентных схем, стриминг и трассировка. Это те же требования, что Сбер формулирует как политику контрольных точек и передачу сессии — фреймворк даёт их из коробки.</p>
+</div></details>
+
+<details><summary>Как вы наблюдаете за агентом в проде?</summary><div class="a">
+<p>Трассировка каждого шага: какой узел, какие токены, сколько стоило, что вернул инструмент (LangSmith или открытый Langfuse). Метрики: доля успешно завершённых задач, число итераций на задачу, стоимость на задачу, частота регрессий, внесённых агентом, доля эскалаций к человеку. Плюс набор оценок в CI, чтобы изменение промпта или модели не ухудшило качество. Без этого агент — чёрный ящик, который нельзя ни улучшить, ни защитить.</p>
+</div></details>
+
+<details><summary>Как вы бы встроили это в Java/Kotlin-стек?</summary><div class="a">
+<p>Инструменты, права и доступ к данным — на JVM, где уже есть безопасность и транзакции; публикую их как MCP-сервер или REST. Для агентного слоя два варианта: Spring AI (ChatClient, @Tool, Advisors для RAG, MCP-клиент) — если хочу единый стек; или Python с LangGraph — если нужны сложные графы, паузы и зрелая наблюдаемость. Начал бы со Spring AI и вынес оркестрацию отдельно, только если понадобится.</p>
+</div></details>
+
+<h3>Про вакансию: агентизация разработки</h3>
+
+<details><summary>Как вы понимаете «агентизировать процессы разработки»? С чего бы начали?</summary><div class="a">
+<p>Это перенос части петли реализации — правка, тесты, ревью, обновление зависимостей, разбор инцидентов — на агентов при сохранении контроля у человека на уровне намерения и приёмки. Начал бы не с автономии, а со среды: правила и контекст проекта для агентов, агент-ревьюер в CI, набор оценок. Первые задачи — низкорисковые и измеримые: расчистка техдолга, покрытие тестами, обновления зависимостей ночью с утренним ревью по одной сводке. Потом — постепенно расширять горизонт задач по мере того, как метрики регрессий это позволяют. Ключевые ошибки, которых избегаю: автономия раньше среды и ИИ-процесс поверх старых согласований.</p>
+</div></details>
+
+<details><summary>Как измерить, что внедрение ИИ в разработку дало эффект?</summary><div class="a">
+<p>Парные метрики: скорость и качество вместе, иначе ускорение скроет рост дефектов. База — DORA (частота релизов, время до прода, доля неудачных изменений, время восстановления). Добавляю ИИ-специфичные: доля задач, выполненных агентами, частота регрессий, внесённых агентом, полнота проверочного пакета, стоимость токенов на задачу, доля ночной работы по техдолгу, которая иначе бы не делалась. И честная оценка зрелости: медианная длительность задачи, которую агент делает сам, — самый честный показатель.</p>
+</div></details>
+
+<details><summary>Расскажите про ваш реальный опыт с LLM (если он небольшой)</summary><div class="a">
+<p>Честно обозначить масштаб, потом показать понимание. Пример: «В продакшене — [что реально делали: ассистент, автотесты, суммаризация]. Главные уроки: модель — не главная проблема; проблема — данные, права и проверка качества. Плюс ежедневно использую агентные инструменты в разработке и вижу, где они ошибаются: преждевременное „готово“, потеря контекста в длинной сессии. Поэтому в команде начал бы с правил, ревью-агента и оценок, а не с автономии». Такой ответ сильнее, чем перечисление аббревиатур.</p>
+</div></details>
+
+<!-- ===================== 11 ===================== -->
+<h2 id="s11">11. Карточка тезисов на завтра</h2>
+<p>Если запомнить только это — уже хорошо.</p>
+<div class="card">
+<h3>Пять тезисов техлида</h3>
+<ol>
+  <li><b>Среда важнее модели.</b> Модель — сменная деталь. Вкладываюсь в контекст, инструменты, правила, проверки.</li>
+  <li><b>Начинать с простого.</b> Рабочий поток → один агент → мультиагент. Вправо только когда левое не решает. 60–70% задач — одному агенту.</li>
+  <li><b>Оценки и наблюдаемость с первого дня.</b> Иначе не отличить улучшение от регресса. Задача завершена, когда собран проверочный пакет.</li>
+  <li><b>Права зависят от задачи.</b> Рефакторинг в ветке — сам; прод и персональные данные — только с подтверждением. Человек в цикле на необратимых действиях.</li>
+  <li><b>Автономию расширять постепенно.</b> Сначала ревью-агент и ночной техдолг с утренней сводкой, потом длиннее задачи — по метрикам регрессий, а не по желанию.</li>
+</ol>
+</div>
+
+<p class="small">Термины одной строкой: <b>RAG</b> — ответ по найденным документам со ссылками. <b>ReAct</b> — цикл «подумал → сделал → посмотрел». <b>MCP</b> — стандартный разъём между ИИ-приложением и системами. <b>LangGraph</b> — агент как блок-схема с сохраняемым состоянием. <b>Evidence Bundle</b> — пакет доказательств, что задача сделана. <b>Guardian Agent</b> — агент, который следит за агентами. <b>Approval fatigue</b> — когда подтверждений столько, что их перестают читать.</p>
+
+</main>
+</body>
+</html>
