@@ -42,8 +42,9 @@ git rev-parse HEAD                      # равен SHA из задачи
 # ждём health каждого сервиса из topology.services[] (до ~120 с)
 for i in $(seq 1 24); do curl -sf http://localhost:<port><health> && break; sleep 5; done
 ```
-Сервис не поднялся healthy: это дефект, вердикт FAIL с выдержкой логов
-(`docker compose logs --tail=80 <service>`).
+Стенд не поднялся или сервис не стал healthy: это дефект, вердикт FAIL с выдержкой логов
+стенда (для docker compose: `docker compose logs --tail=80 <service>`). Все AC, которые
+требовали стенда, идут одним пунктом FAIL с этой причиной. `NOT_VERIFIED` здесь не ставится.
 
 **B. Testcontainers**, если `local_env.up` пуст, но есть `commands.backend.integration_test`.
 AC проверяются интеграционными тестами с реальными зависимостями. AC без теста: допиши
@@ -83,8 +84,8 @@ head -c 400 .agents/cache/resp.json
 | FAIL | хотя бы один тест-кейс не прошёл |
 | NOT_VERIFIED | требуемый способ проверки недоступен |
 
-Story: `PASS`, если все AC PASS, автотесты и сборка SUCCESS. `FAIL`, если есть FAIL или
-упали сборка, тесты. Иначе `NOT_VERIFIED`.
+Story: `PASS`, если все AC PASS, автотесты и сборка SUCCESS. `FAIL`, если есть FAIL, упали
+сборка, тесты или не поднялся стенд. Иначе `NOT_VERIFIED`.
 
 У каждого FAIL: severity (critical: утечка данных или сломан основной поток; high: не
 работает основной сценарий; medium: граница или второстепенный сценарий; low: косметика),

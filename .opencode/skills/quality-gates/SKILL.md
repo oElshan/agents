@@ -118,11 +118,30 @@ PASS:
 
 ## Утверждение (`/approve <F>` или auto)
 
+**Первое утверждение**, фича в Analysis:
+
 1. Проверь, что последний G2 у фичи PASS.
 2. `spec_sha` = `git show <feature-branch>:<spec> | git hash-object --stdin`, `approved` =
    сегодняшняя дата, сними парковку.
 3. Создай карточки stories по таблице «Декомпозиция» (skill `board`).
 4. Фича → Ready for Dev.
+
+**Повторное утверждение**, фича в Ready for Dev или In Development, а хэш spec на
+feature-ветке не совпадает со `spec_sha` (spec изменили после утверждения):
+
+1. Проверь изменённую spec по чек-листу G2, без analyst и architect. FAIL: откажи и перечисли
+   замечания, spec правит человек.
+2. Обнови `spec_sha` и `approved`.
+3. Сверь таблицу «Декомпозиция» с карточками фичи по `spec_key`:
+   - строка без карточки: создай story в Ready for Dev;
+   - у карточки не в Done обнови `ac`, `deps`, `priority`, `size` из таблицы. Если у story в
+     Code Review или Testing изменились AC, сбрось её вердикты `review` и `qa` и верни её в
+     In Development;
+   - карточку, чьей строки в таблице больше нет, и карточку в Done с изменёнными AC не
+     трогай, перечисли человеку. Изменённые AC готовых stories проверит регрессия в гейте
+     фичи.
+4. Сними со stories фичи парковку «spec изменена после утверждения». Статус фичи не меняй.
+5. В журнал фичи: `повторно утверждена · spec_sha <старый> → <новый>`.
 
 ## G3 · Ready for Dev или Sprint → In Development
 
@@ -250,7 +269,9 @@ FAIL: карточки остаются в Deploy, `PARK human`, причина 
 - tester в режиме `regression`: все AC фичи на HEAD feature-ветки.
 
 Регрессия упала: на каждый сломанный AC создай баг в Sprint (skill `board`), фича остаётся
-In Development. Стенд не поднялся: `PARK human`.
+In Development. Tester вернул FAIL, потому что не поднялся стенд: баги не создавай, `PARK
+human` с выдержкой логов из отчёта. Отдельной story, которую можно вернуть на доработку, у
+фичи здесь нет.
 
 PASS: draft PR (ниже). PR создан: фича → Done, поле `pr`. PR не создан (нет `gh` или remote,
 человек отклонил push): фича остаётся In Development, `PARK human`, причина «PR не создан:
