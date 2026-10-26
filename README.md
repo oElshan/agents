@@ -447,9 +447,6 @@ quality:
 `opencode api --standalone GET /api/model | jq -r '.[] | select(.id=="deepseek-v4-pro") | .variants[].id'`.
 
 Проверить, что OpenCode принял настройку: `opencode debug config | jq '.[] | .info.agents // empty'`.
-Переключается ли субагент на свою модель на живом прогоне, пока не проверено. Модель,
-на которой реально работала сессия субагента, видна в
-`opencode api --standalone GET /api/session/<id>/message`, поле `model`.
 
 > Не задавайте модель строкой `model:` во frontmatter файла агента. В 2.0.29 одна такая
 > строка выключает загрузку всех агентов: `opencode debug agents` возвращает пустой список.
@@ -462,6 +459,47 @@ quality:
 
 **Личный выбор модели.** Корневой `opencode.json` проекта сильнее глобального файла.
 Если модель задана в проекте, ваш глобальный выбор не сработает.
+
+### Разные провайдеры в одном запуске
+
+Агенты одного запуска `/orchestrate` могут работать на моделях разных провайдеров.
+Оркестратор работает в своей сессии, а каждый вызов субагента OpenCode открывает как
+отдельную дочернюю сессию со своей моделью: из `agents.<id>.model`, а если её нет, с моделью
+сессии.
+
+```json
+{
+  "model": "anthropic/claude-opus-5-5",
+  "agents": {
+    "developer":         { "model": "deepseek/deepseek-v4-pro" },
+    "security-reviewer": { "model": "anthropic/claude-sonnet-5-5" },
+    "java-reviewer":     { "model": "deepseek/deepseek-flash" },
+    "tester":            { "model": "ollama/qwen3.8:27b-mlx-64k" }
+  }
+}
+```
+
+Здесь оркестратор, analyst и architect работают на Anthropic (модель сессии), developer и
+java-reviewer на DeepSeek, tester на локальном Ollama.
+
+Что нужно учесть:
+
+- каждого облачного провайдера подключите через `opencode auth login`, локальному Ollama
+  ключ не нужен;
+- модель любой роли должна поддерживать вызов инструментов: агенты работают только через них;
+- для локальной модели задайте окно контекста явно (раздел про Ollama ниже);
+- код и вывод команд уходят каждому провайдеру, на котором работает хоть одна роль.
+
+Что проверено: смешанную настройку с DeepSeek, вариантом `#high` и Ollama у разных агентов
+OpenCode разбирает без ошибок, `opencode debug config` показывает у каждой роли свою пару
+провайдер и модель. Что субагент во время работы действительно идёт на своей модели, живым
+прогоном пока не проверено. Проверьте после первого запуска: возьмите id сессии субагента из
+`opencode session list --standalone` и посмотрите её модель:
+
+```bash
+opencode api --standalone GET /api/session/<id>/message \
+  | jq -r '[.data[] | select(.type=="assistant") | "\(.model.providerID)/\(.model.id)"] | unique[]'
+```
 
 ### Ollama и локальные модели
 
