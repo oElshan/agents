@@ -1,9 +1,13 @@
 ### Mac OS ###
 .DS_Store
 
-### Claude Code (локальное — не коммитить) ###
+### Claude Code (локальное, не коммитить) ###
 .claude/settings.local.json
-.claude/session-context.md
 
 ### IDE ###
 .idea/
+*.iml
+
+### Агентная команда: runtime (карточки, паузы, кэш) ###
+.agents/board/
+.agents/cache/
