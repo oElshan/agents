@@ -26,6 +26,11 @@ cd <проект>
 git subtree add --prefix=.opencode https://github.com/oElshan/agents.git v1.0.0 --squash
 ```
 
+`git subtree add` требует хотя бы один коммит и дерево без незакоммиченных изменений. В
+новом репозитории сначала сделайте `git commit --allow-empty -m "init"`, текущие изменения
+закоммитьте или уберите в `git stash`. Иначе будет ошибка
+`ambiguous argument 'HEAD'` или `working tree has modifications`.
+
 Номер последней версии: `git ls-remote --tags https://github.com/oElshan/agents.git`.
 
 **3. Задайте модель для проекта**
@@ -566,6 +571,8 @@ ollama create qwen3.8:27b-mlx-64k -f Modelfile
 
 ### Если что-то пошло не так
 
+- `git subtree add` пишет `ambiguous argument 'HEAD'` или `working tree has modifications`:
+  в репозитории нет ни одного коммита или есть незакоммиченные изменения, см. быстрый старт.
 - `opencode debug agents` возвращает `[]` сразу после `git subtree add` или мёржа:
   повторите через несколько секунд и не направляйте вывод в файл внутри проекта. OpenCode
   перечитывает каталог после изменений и в это время отдаёт пустой список.
