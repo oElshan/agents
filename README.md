@@ -26,8 +26,7 @@ cd <проект>
 git subtree add --prefix=.opencode https://github.com/oElshan/agents.git v1.0.0 --squash
 ```
 
-Пока версия `v1.0.0` не выпущена, скопируйте каталог из этого репозитория:
-`cp -R <репозиторий фреймворка>/.opencode <проект>/ && git add .opencode && git commit -m "chore: агентная команда"`.
+Номер последней версии: `git ls-remote --tags https://github.com/oElshan/agents.git`.
 
 **3. Задайте модель для проекта**
 
@@ -594,8 +593,7 @@ git tag -a v1.1.0 "$SHA" -m "v1.1.0: <что изменилось>"
 git push origin v1.1.0
 ```
 
-Ветки `dist` и тегов пока нет, первый выпуск ещё не сделан. Перед выпуском прогоните на
-тестовом проекте `/setup`, `/feature`, `/sprint add`, `/orchestrate`, `/approve`,
+Первая версия: `v1.0.0`. Перед каждым выпуском прогоните на тестовом проекте `/setup`, `/feature`, `/sprint add`, `/orchestrate`, `/approve`,
 `/orchestrate`. Major-версия означает несовместимые изменения формата карточки, профиля или
 веток, minor означает новые команды, агенты и гейты, patch означает исправления промптов и
 прав.
