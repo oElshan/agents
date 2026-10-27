@@ -23,7 +23,7 @@ opencode models            # найти id модели, например deepse
 
 ```bash
 cd <проект>
-git subtree add --prefix=.opencode https://github.com/oElshan/agents.git v1.0.1 --squash
+git subtree add --prefix=.opencode https://github.com/oElshan/agents.git v1.0.2 --squash
 ```
 
 `git subtree add` требует хотя бы один коммит и дерево без незакоммиченных изменений. В
@@ -552,8 +552,9 @@ ollama create qwen3.8:27b-mlx-64k -f Modelfile
 
 Первый живой прогон (setup → Sprint → Analysis → G2) нашёл три проблемы: стадия жила в
 отдельном поле, доску приходилось настраивать руками, комментарии гейтов не писались.
-Исправленная настройка проверена вызовами GitHub API, полный цикл в режиме `github` ещё не
-прогонялся.
+После исправления `/approve` прошёл на той же доске: шесть stories стали sub-issues фичи и
+встали в колонку Ready for Dev, карточки и доска совпали. Разработку, ревью и QA в режиме
+`github` ещё не прогоняли.
 
 ## Гарантии и ограничения
 
@@ -614,7 +615,7 @@ git tag -a v1.1.0 "$SHA" -m "v1.1.0: <что изменилось>"
 git push origin v1.1.0
 ```
 
-Текущая версия: `v1.0.1`. Перед каждым выпуском прогоните на тестовом проекте `/setup`, `/feature`, `/sprint add`, `/orchestrate`, `/approve`,
+Текущая версия: `v1.0.2`. Перед каждым выпуском прогоните на тестовом проекте `/setup`, `/feature`, `/sprint add`, `/orchestrate`, `/approve`,
 `/orchestrate`. Major-версия означает несовместимые изменения формата карточки, профиля или
 веток, minor означает новые команды, агенты и гейты, patch означает исправления промптов и
 прав.
