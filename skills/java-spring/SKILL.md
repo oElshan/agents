@@ -26,7 +26,7 @@ description: Как developer пишет backend на Java/Spring Boot - пор�
 - Ожидание асинхронности через Awaitility, не `Thread.sleep`.
 - Unit-логику не поднимают через `@SpringBootTest`: `@WebMvcTest`, `@DataJpaTest` или чистый
   Mockito.
-- Покрытие изменённых классов ≥ `quality.unit_coverage_min`: проверь отчётом
+- Покрытие строк изменённых исходных файлов ≥ `quality.unit_coverage_min`: проверь отчётом
   `commands.backend.coverage`, цифру бери из отчёта.
 
 ## Безопасность (CRITICAL, блокирует коммит)
@@ -51,8 +51,8 @@ description: Как developer пишет backend на Java/Spring Boot - пор�
 ## Spring и JPA (HIGH)
 
 - Constructor injection, не `@Autowired` на полях.
-- Бизнес-логика в сервисе, не в контроллере. `@Transactional` только на сервисном слое,
-  чтение `@Transactional(readOnly = true)`.
+- Бизнес-логика и граница общей транзакции — в сервисе. `@Transactional` на repository
+  допустим для его операции. Для чтения учитывай `readOnly` и унаследованные настройки Spring Data.
 - Вызов `@Transactional`, `@Cacheable`, `@Async` через `this.` не работает (прокси): вынеси
   в другой бин.
 - Списки на внешнем API только с `Pageable` или `LIMIT`.

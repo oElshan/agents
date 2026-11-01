@@ -1,60 +1,81 @@
 ---
 name: deploy-staging
-description: Процедура devops для деплоя на staging - проверки манифестов для high-load, сборка артефакта, деплой командой профиля (helm, kustomize, kubectl, docker compose), rollout status, health, smoke, логи, репетиция отката и kill switch, немедленный откат при провале health.
+description: Деплой проверенных артефактов на staging. Проверка SHA, digest, rollout, health, smoke, логов и отката. Код и конфигурация неизменны.
 ---
 
 # Деплой на staging
 
-Команды только из `.agents/profile.md`. Production не трогается.
+Только staging. Команды бери из `.agents/profile.md`. Пустая обязательная команда
+даёт BLOCKED. Ошибка команды блокирует PASS. Не пересобирай артефакты во время деплоя.
 
-## 1. Перед деплоем
+## 1. Проверки до деплоя
 
 - HEAD равен SHA из задачи, дерево чистое.
+- Manifest из G7 содержит этот SHA и digest каждого артефакта.
+- Команда staging использует digest из manifest, а не изменяемый тег.
 - Если `quality.high_load: true`, проверь манифесты затронутых сервисов
-  (`infra.k8s_manifests_path`): заданы requests и limits, readiness и liveness, replicas ≥ 2
+  (`stack.infra.k8s_manifests_path`): заданы requests и limits, readiness и liveness, replicas ≥ 2
   у критичных сервисов, HPA там, где он заявлен в arch doc. Нарушение: FAIL до деплоя.
 
-## 2. Артефакт
+Нужна правка файла: BLOCKED. Верни список правок. Они должны пройти разработку, ревью и QA.
 
-Docker: `docker build` по Dockerfile сервиса или `docker compose build`, тег = короткий SHA.
-Без Docker: `commands.backend.build`.
+## 2. Деплой и раскатка
 
-## 3. Деплой
+Выполни `commands.deploy.staging`, затем `commands.deploy.status`.
+Обе команды должны завершиться с кодом 0. Используй staging context и namespace из профиля.
+Проверь каждый сервис из manifest. Не используй текущий контекст Kubernetes без проверки.
 
-```bash
-<commands.deploy.staging>
-```
-Kubernetes: дождись раскатки каждого затронутого сервиса:
-```bash
-kubectl rollout status deployment/<service> -n <commands.deploy.namespace_staging> --timeout=180s
-```
-docker compose: `docker compose ps` и состояние healthy.
+## 3. Health, smoke и логи
 
-## 4. Проверка
+Для каждого затронутого сервиса:
 
 ```bash
-curl -sf <url сервиса><topology.services[].health>            # каждый затронутый сервис
-<commands.smoke.staging>
-kubectl logs deployment/<service> -n <ns> --since=60s | grep -iE 'error|exception|fatal' || echo "чисто"
-# compose: docker compose logs --since=60s <service> | grep -iE 'error|exception|fatal' || echo "чисто"
+python3 .opencode/lib/gates.py health --url <staging-url><health>
 ```
 
-Health не OK: сразу `<commands.deploy.rollback>`, проверь health после отката, вердикт FAIL.
+Затем выполни `commands.smoke.staging`. Код 0 обязателен.
+Пример получения и проверки логов Kubernetes:
 
-## 5. Репетиция отката
+```bash
+python3 .opencode/lib/gates.py logs -- kubectl --context <staging-context> logs deployment/<service> -n <staging-namespace> --since=60s
+```
+
+Для Compose передай после `--` команду `docker compose logs --since=60s <service>`.
+Код 0 = логи получены, заданные признаки ошибок не найдены. Код 1 = найдены признаки
+`error`, `exception` или `fatal`. Код 2 = логи не получены. Код 2 нельзя назвать «чисто».
+При коде 2 верни BLOCKED. При коде 1 верни FAIL.
+Проверка ищет текстовые признаки; она не подтверждает полноту журналов всех реплик.
+
+Health или smoke упал: выполни настроенный откат и проверь его результат. Итог FAIL.
+Команда отката отсутствует или завершилась ошибкой: остановись и сообщи об этом.
+
+## 4. Репетиция отката
 
 Если задан `commands.deploy.rollback` и SDC 4 не `forward-only`:
-1. выполни откат;
+1. выполни откат, проверь rollout;
 2. проверь health и, если миграция обратима, состояние схемы;
-3. верни новую версию повторным `<commands.deploy.staging>`;
-4. снова health и smoke.
+3. верни те же артефакты повторным `<commands.deploy.staging>`, без новой сборки;
+4. повтори rollout, health, smoke и проверку логов.
 
 Нет команды отката или forward-only: `skipped` с этой причиной.
 
-## 6. Kill switch
+## 5. Kill switch
 
 Если SDC 7 заявляет kill switch: переключи его (флаг, env, ключ ConfigMap), покажи эффект
-(лог, ответ endpoint, метрика), верни обратно.
+(лог, ответ endpoint, метрика), верни обратно. Не меняй файлы проекта.
+После возврата повтори health и smoke.
+
+## 6. Проверка артефактов
+
+После всех действий:
+
+```bash
+python3 .opencode/lib/gates.py artifact --verified <SHA из G7> --command '<commands.deploy.observe_artifact>' --expected <artifact_manifest_sha>
+```
+
+Команда наблюдения читает фактические digest и версию кода из staging. Она возвращает JSON
+с полями `commit` и `artifacts`. Формат описан в `.opencode/lib/README.md`.
+Проверка сверяет manifest, HEAD и чистоту дерева. Только PASS разрешает G8.
 
 ## 7. Отчёт
 

@@ -39,20 +39,23 @@ git rev-parse HEAD                      # равен SHA из задачи
 **A. Живое окружение**, если задан `commands.local_env.up`:
 ```bash
 <commands.local_env.up>
-# ждём health каждого сервиса из topology.services[] (до ~120 с)
-for i in $(seq 1 24); do curl -sf http://localhost:<port><health> && break; sleep 5; done
+python3 .opencode/lib/gates.py health --url http://localhost:<port><health> --attempts 24 --interval 5 --timeout 5
 ```
 Стенд не поднялся или сервис не стал healthy: это дефект, вердикт FAIL с выдержкой логов
 стенда (для docker compose: `docker compose logs --tail=80 <service>`). Все AC, которые
 требовали стенда, идут одним пунктом FAIL с этой причиной. `NOT_VERIFIED` здесь не ставится.
 
 **B. Testcontainers**, если `local_env.up` пуст, но есть `commands.backend.integration_test`.
-AC проверяются интеграционными тестами с реальными зависимостями. AC без теста: допиши
-интеграционный тест в тестовом каталоге, запусти, приложи вывод.
+AC проверяются интеграционными тестами с реальными зависимостями. AC без теста: добавь
+интеграционный тест, закоммить и верни `REVIEW_REQUIRED`. После G4 и ревью оркестратор
+снова запустит QA на новом SHA.
 
-**C. Без стенда**: нет ни окружения, ни интеграционных тестов, или нет Docker. Прогони
+**C. Без стенда**: нет ни окружения, ни интеграционной команды. Прогони
 автотесты. AC с `Проверка: unit` проверяются тестами. AC с `Проверка: stand` или
 `integration` получают `NOT_VERIFIED` с причиной. Чтение кода AC не подтверждает.
+Если Docker нужен настроенной команде, но недоступен, это ошибка стенда. Верни FAIL.
+Не переходи молча на уровень C. Ошибка самой команды `health` даёт ERROR и блокирует QA.
+В этом случае общий вердикт QA — `ERROR`, оркестратор паркует задачу.
 
 ## 4. Прогон AC
 
@@ -101,7 +104,7 @@ repro (команда стенда, запрос, роль), expected из AC, a
 # QA: <F> — <название>
 
 Spec: docs/specs/<F>-<slug>.md
-Последний прогон: <дата> · story <S> · SHA <sha> · стенд A | B | C · вердикт PASS | FAIL | NOT_VERIFIED
+Последний прогон: <дата> · story <S> · Tested commit <sha> · стенд A | B | C · вердикт PASS | FAIL | NOT_VERIFIED
 
 ## TC-<F>-001: <сценарий>
 AC: AC-<F>-01 · Приоритет: Critical | High | Medium · Тип: API | UI | RBAC | Edge
@@ -111,7 +114,9 @@ AC: AC-<F>-01 · Приоритет: Critical | High | Medium · Тип: API | U
 Результат: `201 {"id":42,…}` · PASS · <дата>
 ```
 
-Закоммить: `docs(<S>): QA — <pass>/<total> AC`.
+Перед записью убедись: HEAD равен `Tested commit`. Закоммить только этот документ:
+`docs(<S>): QA — <pass>/<total> AC`. Новый HEAD — `Report commit` в итоговом сообщении.
+Не вставляй SHA коммита отчёта в сам отчёт: это потребует нового коммита.
 
 ## 8. Погасить стенд
 

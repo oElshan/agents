@@ -10,24 +10,28 @@ description: Подключение проекта к агентной кома�
 
 ## Шаги `/setup`
 
-1. **Проверки.** Это git-репозиторий (`git rev-parse --show-toplevel`), дерево чистое.
+1. **Проверки.** Доступен Python 3.9+. Это git-репозиторий (`git rev-parse --show-toplevel`), дерево чистое.
    Определи default branch: `git symbolic-ref --short refs/remotes/origin/HEAD` (без
    `origin/`), иначе текущая ветка; подтверди у человека и переключись на неё
    (`git switch <default>`). Если `.agents/profile.md` уже есть и `initialized: true`,
    покажи текущие значения и обновляй только то, что человек попросил.
 2. **Детект** по таблице ниже. Команды бери из реальных файлов: wrapper (`./gradlew`,
    `./mvnw`) раньше глобальных, npm-скрипты из `package.json`, а не угаданные.
-3. **Покрытие.** Гейт G4 читает CSV JaCoCo. Проверь, что отчёт CSV включён:
-   - Gradle: в `jacocoTestReport { reports { csv.required = true } }`;
-   - Maven: `jacoco-maven-plugin` с goal `report` (CSV `target/site/jacoco/jacoco.csv`
-     создаётся по умолчанию).
-   Не включён: предложи человеку правку build-файла, сам её не делай.
+3. **Покрытие.** G4 читает JaCoCo XML. В Gradle нужен `xml.required = true`.
+   В Maven нужен goal `jacoco:report`. Проверь фактический путь отчёта.
+   Заполни `coverage_sources`: корень Java/Kotlin и отчёт каждого модуля.
+   Команда coverage должна заново запускать тесты и создавать XML. Для Gradle проверь
+   необходимость `--rerun-tasks`; для Maven — `clean verify`. Не используй старый отчёт.
+   Если отчёт отключён, предложи правку build-файла. До настройки G4 для backend заблокирован.
 4. **Профиль.** Скопируй `templates/profile.md` в `.agents/profile.md` и заполни. Покажи
    человеку итог одной таблицей (стек, команды, стенд, деплой, пороги) и спроси:
    - режим доски: `local` или `github`;
    - утверждение spec человеком (`gates.spec_approval`): `human` (по умолчанию) или `auto`;
    - пороги покрытия, если 95/50 не подходят.
    После подтверждения поставь `initialized: true`, `updated`.
+   Если staging включён, настрой `prepare_artifact`, `observe_artifact`, `status` и smoke.
+   Команды артефактов возвращают формат из `.opencode/lib/README.md`.
+   Staging должен использовать digest. Для Kubernetes нужен явный context и namespace.
 5. **AGENTS.md.** Если файла нет, создай по `templates/AGENTS.md`: модули из структуры
    каталогов, домен из сущностей и README, роли из security-конфига. Есть `CLAUDE.md`:
    возьми знание оттуда. Есть `AGENTS.md`: допиши только раздел «Агентная команда».
