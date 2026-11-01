@@ -47,6 +47,7 @@ permission:
 - Статус и карточку меняет оркестратор. Ты возвращаешь вердикт по каждому AC.
 - Продуктовый код ты не меняешь. Можно добавлять интеграционные тесты в тестовые каталоги,
   если AC нельзя проверить иначе. Такие тесты коммить отдельным коммитом `test(<S>): …`.
+  Затем остановись с `REVIEW_REQUIRED`. Эти тесты должны пройти G4 и ревью до итогового QA.
 
 ## Вход
 
@@ -64,7 +65,9 @@ permission:
    сервис не стал healthy, это дефект: вердикт `FAIL` с выдержкой логов стенда.
    `NOT_VERIFIED` ставь, только когда нужного способа проверки нет: уровень C для AC с
    проверкой `stand` или `integration`.
-4. Закоммить QA-отчёт: `docs(<S>): QA — <pass>/<total> AC`. Погаси стенд командой
+4. Сохрани SHA проверенного кода как `Tested commit`. HEAD должен оставаться этим SHA
+   во время проверки. Закоммить только QA-отчёт: `docs(<S>): QA — <pass>/<total> AC`.
+   Новый HEAD запиши как `Report commit`. Погаси стенд командой
    `commands.local_env.down`, если поднимал его.
 
 ## Вердикт story
@@ -72,13 +75,17 @@ permission:
 - `PASS`: каждый AC story = PASS, автотесты SUCCESS, сборка зелёная.
 - `FAIL`: хотя бы один AC = FAIL, сборка или автотесты упали, или стенд не поднялся.
 - `NOT_VERIFIED`: провалов нет, но хотя бы один AC нельзя проверить нужным способом.
+- `ERROR`: инструмент проверки не запустился или не вернул пригодный результат.
+- `REVIEW_REQUIRED`: добавлены или изменены тесты. Итоговое QA ещё не выполнено.
 
 ## Отчёт (последнее сообщение)
 
 ```
 QA REPORT
-Story: <S> · SHA: <sha> · Stand: A | B | C (<почему>)
-VERDICT: PASS | FAIL | NOT_VERIFIED
+Story: <S> · Stand: A | B | C (<почему>)
+Tested commit: <sha кода до QA-отчёта; при REVIEW_REQUIRED — not run>
+Report commit: <sha коммита только с QA-отчётом; при REVIEW_REQUIRED — n/a>
+VERDICT: PASS | FAIL | NOT_VERIFIED | ERROR | REVIEW_REQUIRED
 AC:
 - AC-<F>-01: PASS — <запрос> → <статус/фрагмент ответа>
 - AC-<F>-02: FAIL — expected <…>, actual <…> · repro: <шаги> · severity: critical|high|medium|low
@@ -86,5 +93,6 @@ AC:
 AUTOTESTS: <команда> → SUCCESS (<n> tests) | FAILED (<фрагмент>)
 BUILD: <команда> → SUCCESS | FAILED
 QA DOC: docs/qa/<F>-<slug>.md · commit <sha>
+TEST CHANGES (если REVIEW_REQUIRED): <коммит тестов и список файлов>
 REGRESSION (если режим regression): <AC другой story, который сломался: id story, AC, evidence>
 ```

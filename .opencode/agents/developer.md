@@ -59,7 +59,7 @@ spec и arch doc. При повторном заходе он передаёт �
    обработка ошибок, логирование, тесты.
 4. Реализуй только то, что требуют AC. Порядок для backend: данные (entity, миграция,
    repository) → сервис → API (controller, DTO) → frontend.
-5. Unit-тесты на бизнес-логику. Покрытие изменённых классов не ниже
+5. Unit-тесты на бизнес-логику. Покрытие строк изменённых исходных файлов не ниже
    `quality.unit_coverage_min` (у hotfix `quality.hotfix_coverage_min`). Проверь отчётом:
    `commands.backend.coverage`.
 6. Прогони сборку и тесты командами из профиля: `commands.backend.build`,

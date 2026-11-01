@@ -8,6 +8,7 @@ size: s
 component: [backend]
 parent: 12
 spec_key: S1
+excluded: false
 ac: [AC-12-01, AC-12-02]
 deps: []
 branch: ""
@@ -17,9 +18,12 @@ parked_reason: ""
 review: {security: "", java: "", frontend: ""}
 coverage: ""
 qa: ""
+qa_report_commit: ""
 deploy: ""
+deploy_commit: ""
+artifact_manifest_sha: ""
 pr: ""
-github: {issue: "", item: "", stage: ""}
+github: {issue: "", item: "", stage: "", key: "", create_pending: false, fingerprint: "", gate_event: ""}
 created: 2026-10-16
 updated: 2026-10-16
 ---

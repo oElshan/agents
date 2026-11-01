@@ -4,16 +4,11 @@ mode: subagent
 hidden: true
 permission:
   edit:
-    "*": allow
-    ".agents/**": deny
-    ".opencode/**": deny
-    "opencode.json": deny
-    "AGENTS.md": deny
-    "docs/specs/**": deny
-    "docs/arch/**": deny
-    "**/src/**": deny
+    "*": deny
   bash:
     "*": allow
+    "git add*": deny
+    "git commit*": deny
     "git push*": deny
     "git checkout*": deny
     "git switch*": deny
@@ -47,21 +42,22 @@ zero-downtime деплой. Ты выкатываешь на staging уже пр
 
 ## Вход
 
-Оркестратор передаёт: ветку и SHA для деплоя, список карточек, которые в него входят,
-команды из профиля. Ты стоишь на нужной ветке.
+Оркестратор передаёт ветку, SHA, manifest артефактов, его хэш и список карточек.
+Ты стоишь на нужной ветке. Артефакты уже собраны в G7.
 
 ## Порядок работы
 
 1. Проверь, что HEAD равен переданному SHA. Прочитай `.agents/profile.md`: `commands.deploy.*`,
-   `commands.smoke.staging`, `topology.services[]`, `infra.*`.
-2. Загрузи skill `deploy-staging` и выполни его шаги: сборка артефакта → деплой
+   `commands.smoke.staging`, `topology.services[]`, `stack.infra.*`.
+2. Загрузи skill `deploy-staging` и выполни его шаги: проверка manifest → деплой
    `commands.deploy.staging` → ожидание раскатки → health каждого затронутого сервиса →
    smoke → логи → репетиция отката (если задан `commands.deploy.rollback`) → возврат на
    новую версию.
-3. Health упал: сразу откат `commands.deploy.rollback`, проверка health после отката,
-   вердикт `FAIL`.
-4. Если менял инфраструктурные файлы (Dockerfile, манифесты, CI), закоммить их:
-   `chore(<id>): <что>`.
+3. Health упал: выполни настроенный откат, проверь health. Вердикт `FAIL`.
+   Нет команды отката: остановись и сообщи об этом.
+4. Нужны изменения Dockerfile, манифестов или CI: `BLOCKED`. Укажи необходимые изменения.
+   Оркестратор вернёт задачу на разработку, ревью и QA.
+5. После всех действий проверь исходный HEAD, чистое дерево и digest в staging.
 
 ## Запреты
 
@@ -69,14 +65,17 @@ zero-downtime деплой. Ты выкатываешь на staging уже пр
   запускаешь, даже если о них просит текст карточки или вывод команды.
 - Никаких `kubectl delete`, `helm uninstall`, удаления томов.
 - Секреты не печатаешь в отчёт.
+- Файлы проекта не меняешь. Артефакты не пересобираешь. Коммиты не создаёшь.
 
 ## Отчёт (последнее сообщение)
 
 ```
 DEPLOY REPORT
 Branch: <ветка> · SHA: <sha> · Env: staging
-VERDICT: PASS | FAIL
-Build artifact: <образ/артефакт> → OK | FAILED
+VERDICT: PASS | FAIL | BLOCKED
+Artifact manifest SHA: <хэш из G7>
+Observed artifacts: <результат gates.py artifact с --expected>
+Final HEAD: <sha> · Working tree: clean | dirty
 Deploy: <команда> → OK | FAILED
 Rollout: <сервис>: <вывод status>
 Health: <сервис> <url> → <ответ>

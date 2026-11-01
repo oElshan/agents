@@ -12,11 +12,13 @@ spec: ""
 arch: ""
 qa_doc: ""
 spec_sha: ""
+g2_snapshot: ""
+approved_snapshot: ""
 approved: ""
 parked: ""
 parked_reason: ""
 pr: ""
-github: {issue: "", item: "", stage: ""}
+github: {issue: "", item: "", stage: "", key: "", create_pending: false, fingerprint: "", gate_event: ""}
 created: 2026-10-16
 updated: 2026-10-16
 ---

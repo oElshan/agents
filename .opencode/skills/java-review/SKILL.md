@@ -70,8 +70,10 @@ description: Чек-листы java-reviewer - дерево severity и пров
 ## SPR: Spring
 - SPR-01 [MED] `@Autowired` на поле → конструктор
 - SPR-02 [HIGH] бизнес-логика в контроллере
-- SPR-03 [HIGH] `@Transactional` на контроллере или repository
-- SPR-04 [MED] чтение без `@Transactional(readOnly = true)`
+- SPR-03 [HIGH] транзакция бизнес-операции управляется контроллером. Несколько вызовов
+  репозитория требуют общей границы в сервисе. `@Transactional` на repository допустим.
+- SPR-04 [MED] операция только чтения использует запись без причины. Учитывай транзакцию
+  вызывающего сервиса и настройки Spring Data; отсутствие локальной аннотации само по себе не дефект.
 - SPR-05 [MED] россыпь `@Value` → `@ConfigurationProperties`
 - SPR-06 [HIGH] self-invocation `@Transactional`, `@Cacheable`, `@Async` через `this.`
 - SPR-07 [HIGH] состояние в singleton-бине
@@ -91,7 +93,9 @@ description: Чек-листы java-reviewer - дерево severity и пров
 - JPA-11 [HIGH] массовый `saveAll` без `hibernate.jdbc.batch_size` и `order_inserts`
 
 ## VT: Java 21+ и современный Spring Boot
-- VT-01 [HIGH] virtual threads + `synchronized` вокруг блокирующего I/O → `ReentrantLock`
+- VT-01 [HIGH] на JDK 21–23: virtual threads + блокирующий I/O внутри `synchronized`
+  создаёт риск pinning. На JDK 24+ не требуй замену только по этому признаку (JEP 491).
+  Версию бери из профиля. При неизвестной версии запроси данные.
 - VT-02 [HIGH] `InheritableThreadLocal` с virtual threads → `ScopedValue`
 - VT-03 [HIGH] нет `server.shutdown=graceful` и `spring.lifecycle.timeout-per-shutdown-phase`
 - VT-04 [HIGH для native / N/A] reflection без регистрации

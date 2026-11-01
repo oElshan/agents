@@ -1,0 +1,30 @@
+[
+  {
+    "case": "Liquibase: new include in existing master",
+    "command_result": "M\tsrc/main/resources/db/changelog/master.xml",
+    "gate_interpretation": "FAIL under current rule"
+  },
+  {
+    "case": "Freshness after test-only modification",
+    "stdout": "",
+    "returncode": 1,
+    "gate_interpretation": "fresh by empty-stdout rule"
+  },
+  {
+    "case": "Freshness with nonexistent SHA",
+    "stdout": "",
+    "returncode": 1,
+    "git_error": "fatal: ambiguous argument 'deadbeef': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'",
+    "gate_interpretation": "empty stdout indistinguishable without upstream exit validation"
+  },
+  {
+    "case": "Coverage: two changed classes but only one present in report",
+    "stdout": "100.0",
+    "returncode": 0
+  },
+  {
+    "case": "Log collection command fails",
+    "stdout": "чисто",
+    "returncode": 0
+  }
+]

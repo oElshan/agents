@@ -1,6 +1,6 @@
 ---
 name: quality-gates
-description: Гейты G1–G8 и гейт фичи для оркестратора - чек-листы, команды проверки (сборка, тесты, покрытие из JaCoCo, миграции, свежесть вердиктов по SHA, дрейф spec), подготовка веток, шаблоны задач для субагентов, обработка FAIL.
+description: Гейты G1–G8 и гейт фичи. Проверки SHA, утверждённых документов, покрытия JaCoCo XML, миграций и артефактов. Подготовка веток и обработка ошибок.
 ---
 
 # Гейты
@@ -16,60 +16,56 @@ story (feature-ветка или default branch), `<story>` ветка story, `<
 
 ## Общие проверки
 
+Исполняемые проверки: `python3 .opencode/lib/gates.py <проверка>`. Запускай из корня
+проекта. Нужен Python 3.9+. Результат — JSON. Код 0 = PASS, 1 = FAIL, 2 = ERROR.
+Проверяй и код завершения, и поле `status`. ERROR блокирует переход: `PARK human`.
+Пустой вывод, отсутствующая команда и ошибка Git не означают PASS.
+Команды из профиля передавай одним аргументом. Сохраняй буквальные символы и кавычки.
+
 **Чистое дерево** перед любым `git switch` и в G4:
 ```bash
 git status --porcelain
 ```
 Пусто: можно. Иначе остановись и перечисли файлы.
 
-**Свежесть вердикта** `<VERDICT>@<sha>` относительно HEAD ветки story:
+**Свежесть ревью, покрытия и QA**:
 ```bash
-git diff --name-only <sha> <story> | grep -vE '(^|/)docs/qa/|(^|/)src/(test|integrationTest|it)/'
+python3 .opencode/lib/gates.py freshness --verified <sha> --head <story> --qa-report <docs/qa/отчёт.md>
 ```
-Пустой вывод: вердикт действителен. Иначе вердикт устарел, стадию нужно пройти заново.
+Исключение — только указанный обычный файл отчёта. Изменение тестов отменяет вердикты.
+Неизвестный SHA даёт ERROR. Коммит вне истории ветки даёт FAIL.
 
-**Дрейф spec** у story фичи:
+**Утверждённые документы**:
 ```bash
-git show <feature-branch>:<spec path> | git hash-object --stdin
+python3 .opencode/lib/gates.py contract --ref <branch> --spec <spec> --arch <arch> --expected <approved_snapshot>
 ```
-Должно совпасть с `spec_sha` карточки фичи. Не совпало: `PARK human`, причина «spec изменена
-после утверждения, нужен /approve <F>».
+Снимок включает spec, arch, профиль, AGENTS.md, budget, ownership-map и все файлы `.opencode`.
+Проверяй снимок feature-ветки и рабочей ветки перед G3, G4, G6, G7 и перед PR.
+Нет снимка или он изменился: `PARK human`, причина «документы изменены; нужен /approve <F>».
+Чистое дерево обязательно. Незакоммиченные документы нельзя утверждать.
 
-**Применённые миграции** (пути из `paths.migrations` профиля, например `**/db/migration/**`):
+**Миграции**: инструмент и пути бери из профиля. Для каждого пути передай `--path`.
 ```bash
-git diff --name-status --diff-filter=MDR <base>...<story> -- ':(glob)**/db/migration/**' ':(glob)**/db/changelog/**'
+python3 .opencode/lib/gates.py migrations --base <base> --head <story> --tool <flyway|liquibase> --path ':(glob)**/db/migration/**' --path ':(glob)**/db/changelog/**'
 ```
-Любая строка вывода = FAIL: файл существовал в базовой ветке и был изменён, удалён или
-переименован.
+Flyway: существующие файлы неизменны. Liquibase: можно добавить в конец XML master
+`include` нового файла. Существующие узлы и файлы неизменны. Подробности: `db-migration`.
+`migration_tool: none` допустим только при отсутствии изменений в путях миграций.
 
-**Покрытие изменённых классов** (JaCoCo CSV). Команда `commands.backend.coverage`, отчёты
-`commands.backend.coverage_report` (путь или glob):
+**Покрытие изменённых исходных файлов**: JaCoCo XML, счётчик LINE.
 ```bash
-mkdir -p .agents/cache && touch .agents/cache/coverage-start
-<commands.backend.coverage>
-find <coverage_report> -newer .agents/cache/coverage-start     # отчёт обязан быть свежим
-git diff --name-only --diff-filter=AM <base>...<story> -- '*.java' '*.kt' \
-  | grep -E 'src/main/(java|kotlin)/' \
-  | sed -E 's#.*src/main/(java|kotlin)/##; s#\.(java|kt)$##' > .agents/cache/changed-classes.txt
-awk -F, '
-  FILENAME == ARGV[1] { want[$0] = 1; next }
-  FNR > 1 {
-    cls = $3; sub(/\..*/, "", cls)
-    pkg = $2; gsub(/\./, "/", pkg)
-    key = (pkg == "" ? cls : pkg "/" cls)
-    if (key in want) { missed += $8; covered += $9 }
-  }
-  END { if (missed + covered == 0) print "n/a"; else printf "%.1f\n", 100 * covered / (missed + covered) }
-' .agents/cache/changed-classes.txt <coverage_report>
+python3 .opencode/lib/gates.py coverage --base <base> --head <story> --minimum <порог> --command '<commands.backend.coverage>' --source '<root>=<report>'
 ```
-Колонки JaCoCo CSV: `$2` PACKAGE, `$3` CLASS, `$8` LINE_MISSED, `$9` LINE_COVERED. Если
-`commands.backend.coverage` пуст, запиши `coverage: n/a` и предупреждение в журнал: гейт это
-не блокирует, но в PR уйдёт строка «покрытие не измерено».
+Повтори `--source` для каждой записи `commands.backend.coverage_sources`.
+Проверка сама запускает команду. Команда должна заново создать отчёты и запускать тесты.
+Ошибка команды, старый отчёт или отсутствующий файл блокируют G4.
+Источник сопоставляется по пакету и имени файла. Модули используют отдельные отчёты.
+Нет изменённых Java/Kotlin исходников: `applicable: false`, можно записать `n/a@<sha>`.
+При изменении исходников пустая команда запрещена. Файл без данных LINE также блокирует G4.
 
 **TODO без ссылки** в добавленных строках:
-```bash
-git diff <base>...<story> | grep -E '^\+.*\b(TODO|FIXME)\b' | grep -vE '(TODO|FIXME)\((#?[0-9]+|[A-Z]+-[0-9]+)\)'
-```
+Сначала получи `git diff <base>...<story>` и проверь код завершения Git.
+Затем проверь добавленные строки. Формат ссылки: `TODO(123)`, `TODO(#123)` или `TODO(PROJ-123)`.
 
 ## G1 · Sprint → Analysis (feature)
 
@@ -90,6 +86,9 @@ git diff <base>...<story> | grep -E '^\+.*\b(TODO|FIXME)\b' | grep -vE '(TODO|FI
 3. G2.
 
 ## G2 · Analysis → Ready for Dev (feature)
+
+На чистой feature-ветке сначала вызови `contract` без `--expected`. Сохрани начальный
+`snapshot`. После чек-листа повтори вызов. Снимки должны совпасть.
 
 Проверки на feature-ветке:
 - spec содержит обязательные разделы шаблона (skill `write-spec`);
@@ -112,6 +111,7 @@ FAIL: снова analyst или architect с перечнем замечаний
 G2 подряд: `PARK attempts`.
 
 PASS:
+- запиши `g2_snapshot` из результата `contract` вместе с G2 PASS;
 - `gates.spec_approval: human` (по умолчанию): `parked: human`, причина «ждёт /approve <F>».
   Человеку выведи: путь к spec, число AC и stories, ADR, открытые вопросы analyst.
 - `gates.spec_approval: auto`: сразу выполни шаги утверждения ниже.
@@ -120,35 +120,38 @@ PASS:
 
 **Первое утверждение**, фича в Analysis:
 
-1. Проверь, что последний G2 у фичи PASS.
-2. `spec_sha` = `git show <feature-branch>:<spec> | git hash-object --stdin`, `approved` =
-   сегодняшняя дата, сними парковку.
+1. Проверь последний G2 PASS и чистое дерево. Вызови `contract --expected <g2_snapshot>`
+   на feature-ветке. Несовпадение: повтори G2 и запроси новое утверждение.
+2. Запиши `approved_snapshot = g2_snapshot`, `spec_sha` из результата проверки и дату `approved`.
+   Сними парковку.
 3. Создай карточки stories по таблице «Декомпозиция» (skill `board`).
 4. Фича → Ready for Dev.
 
-**Повторное утверждение**, фича в Ready for Dev или In Development, а хэш spec на
-feature-ветке не совпадает со `spec_sha` (spec изменили после утверждения):
+**Повторное утверждение**, фича в Ready for Dev или In Development, а снимок документов
+не совпадает с `approved_snapshot`:
 
 1. Проверь изменённую spec по чек-листу G2, без analyst и architect. FAIL: откажи и перечисли
    замечания, spec правит человек.
-2. Обнови `spec_sha` и `approved`.
+2. Обнови `g2_snapshot`, `approved_snapshot`, `spec_sha` и `approved`.
 3. Сверь таблицу «Декомпозиция» с карточками фичи по `spec_key`:
    - строка без карточки: создай story в Ready for Dev;
-   - у карточки не в Done обнови `ac`, `deps`, `priority`, `size` из таблицы. Если у story в
-     Code Review или Testing изменились AC, сбрось её вердикты `review` и `qa` и верни её в
-     In Development;
-   - карточку, чьей строки в таблице больше нет, и карточку в Done с изменёнными AC не
-     трогай, перечисли человеку. Изменённые AC готовых stories проверит регрессия в гейте
-     фичи.
-4. Сними со stories фичи парковку «spec изменена после утверждения». Статус фичи не меняй.
-5. В журнал фичи: `повторно утверждена · spec_sha <старый> → <новый>`.
+   - у незавершённых stories обнови `ac`, `deps`, `priority`, `size`. Очисти `review`,
+     `coverage`, `qa`, `qa_report_commit`, `deploy_commit`, `artifact_manifest_sha` и `deploy`.
+     Начатые stories верни в In Development. Это нужно и при изменении текста AC без смены ID;
+   - строка удалена: поставь `excluded: true`, `parked: human`, причина «story исключена из spec».
+     Не запускай её. Сохрани карточку и историю. Возврат строки снимает `excluded`;
+   - Done не переоткрывай автоматически. Перечисли такие stories человеку. Регрессия
+     проверит новые AC. Если изменённый код нужно удалить, создай отдельную задачу.
+4. Сними только парковки по дрейфу документов у stories с `excluded: false`.
+   Запрети утверждение, если зависимость активной story указывает на исключённую story.
+5. В журнал: `повторно утверждена · approved_snapshot <старый> → <новый>`.
 
 ## G3 · Ready for Dev или Sprint → In Development
 
 Проверки:
 - нет другой активной story (In Development, Code Review или Testing без парковки);
 - все `deps` в Done;
-- у story фичи: фича утверждена, дрейфа spec нет, каждый AC из `ac` есть в spec;
+- у story фичи: фича утверждена, снимок документов совпадает, `excluded: false`, каждый AC есть в spec;
 - у самостоятельной задачи: в теле карточки есть AC с ID и строкой «Проверка»;
 - дерево чистое.
 
@@ -186,7 +189,7 @@ Developer вернул `BLOCKED`: `PARK human` с его причиной.
   затронутых frontend-приложений `build` и `lint`;
 - тесты: `commands.backend.test` (или `test_one_service` по каждому затронутому сервису),
   frontend `test` затронутых приложений; все SUCCESS;
-- покрытие изменённых классов ≥ `quality.unit_coverage_min` (hotfix:
+- покрытие изменённых исходных файлов ≥ `quality.unit_coverage_min` (hotfix:
   `quality.hotfix_coverage_min`);
 - нет TODO/FIXME без ссылки.
 
@@ -198,7 +201,8 @@ FAIL: In Development, `attempts + 1`, замечания с выводом ко�
 Delta: `git diff --name-only <base>...<story>`.
 - security-reviewer: всегда;
 - java-reviewer: есть файлы `*.java *.kt *.sql *.gradle *.kts pom.xml` или `src/main/resources/**`;
-- frontend-reviewer: есть `*.ts *.tsx *.jsx *.html *.scss *.css` в путях `stack.frontend[].path`.
+- frontend-reviewer: есть `*.ts *.tsx *.js *.jsx *.mjs *.cjs *.html *.scss *.css *.json`
+  или файлы сборки в путях `stack.frontend[].path`.
 
 Неприменимому ревьюеру сразу пиши `n/a`. Применимых запускай параллельно, несколькими
 вызовами task в одном сообщении. `BLOCKED: SHA изменился` → запусти этого ревьюера заново.
@@ -215,56 +219,80 @@ PASS: статус Testing. MEDIUM/LOW находки запиши в журна
 FAIL: In Development, `attempts + 1`, каждая CRITICAL/HIGH находка в замечания.
 Дерево грязное или HEAD сдвинулся после ревью: `PARK human`, в причину вывод
 `git status --porcelain`. Ревьюерам запрещён `edit`, но перенаправление `>` в shell OpenCode
-не блокирует, поэтому изменение файлов ловит этот пункт. Откат решает человек.
+не блокирует. Эта проверка обнаруживает изменения отслеживаемых файлов, но не защищает
+игнорируемое состояние `.agents/board`. Изоляция файлов требует отдельного механизма.
+Откат решает человек.
 
 ## G6 · Testing → merge → Ready to Deploy или Done
 
 Проверки:
-- tester вернул `VERDICT: PASS`, его SHA равен HEAD ветки story;
+- tester вернул `VERDICT: PASS`; `Tested commit` — версия кода до записи QA-отчёта;
+- `Report commit` равен HEAD. Проверка `freshness` от `Tested commit` до HEAD даёт PASS
+  с исключением только точного пути отчёта;
 - в отчёте `AUTOTESTS ... SUCCESS` и `BUILD ... SUCCESS`;
-- вердикты ревью всё ещё свежие, `coverage` записан;
+- ревью и покрытие свежие по проверке `freshness`; утверждённый снимок совпадает;
 - QA-документ закоммичен.
 
 `FAIL`: In Development, `attempts + 1`, в замечания каждый проваленный AC с repro, expected,
 actual.
 `NOT_VERIFIED`: `PARK human`, причина из отчёта (что нужно для стенда). После `/unpark`
 story снова идёт в Testing.
+`ERROR`: `PARK human`, причина — ошибка инструмента. Без исправления проверки merge запрещён.
+`REVIEW_REQUIRED`: tester добавил тесты. Верни story в In Development, очисти старые
+вердикты и выполни G4 → ревью → QA. Developer нужен только при провале G4.
+Этот возврат сам по себе не увеличивает `attempts`.
 
 PASS:
 - story фичи: `git switch <feature-branch>`, `git merge --no-ff <story> -m "merge(<S>): <title>"`.
   Конфликт: `git merge --abort`, `PARK conflict`. После мёржа `git branch -d <story>`.
 - самостоятельная задача: не мёржится, PR откроется после Done.
-- `qa: PASS@<sha>`. Если в профиле есть `commands.deploy.staging` и стадия deploy не на паузе:
-  Ready to Deploy. Иначе Done.
+- запиши `qa: PASS@<tested_commit>` и `qa_report_commit: <report_commit>`;
+- если задан `commands.deploy.staging`: Ready to Deploy. Пауза сохраняет этот статус;
+- если staging не настроен: Done.
 
 ## G7 · Ready to Deploy → Deploy
 
 Пакет: все карточки в Ready to Deploy одной ветки (feature-ветка или ветка задачи).
 
 Проверки:
+- стадия deploy включена. На паузе пакет остаётся в Ready to Deploy;
+- снимок документов совпадает с утверждённым;
 - у каждой карточки пакета `qa: PASS@<sha>`, и этот коммит входит в ветку деплоя:
   `git merge-base --is-ancestor <sha> <branch>` (ветка story после мёржа уже удалена,
   поэтому проверяется вхождение, а не свежесть);
 - на HEAD ветки зелёные `commands.backend.build` и `commands.backend.test` (один прогон на пакет);
 - дерево чистое.
 
-PASS: карточки пакета → Deploy, запусти devops с веткой и SHA.
+Подготовь артефакты из этого HEAD:
+```bash
+python3 .opencode/lib/gates.py artifact --verified <sha> --command '<commands.deploy.prepare_artifact>'
+```
+Команда возвращает JSON: `commit` и `artifacts` (имя сервиса → `sha256:<64 hex>`).
+Пустая команда блокирует деплой. Сохрани `manifest` в `.agents/cache/deploy-manifest.json`,
+а `manifest_sha` и SHA кода — в полях `artifact_manifest_sha` и `deploy_commit` карточек.
+`commands.deploy.staging` должен читать этот manifest и использовать точные digest.
+PASS: карточки пакета → Deploy. Передай devops SHA, manifest и его хэш.
 
 ## G8 · Deploy → Done
 
 Проверки по отчёту devops:
 - `VERDICT: PASS`, деплой и раскатка OK, health каждого сервиса OK, smoke OK, логи чистые;
+- HEAD равен `deploy_commit`, дерево чистое. Код и конфигурация после G7 не менялись;
+- `artifact` с `commands.deploy.observe_artifact` и `--expected <artifact_manifest_sha>`
+  дал PASS. Проверка получила digest из staging после всех откатов и повторного деплоя;
 - репетиция отката выполнена, либо `skipped` с причиной: нет `commands.deploy.rollback` или
   SDC #4 = forward-only;
 - kill switch проверен, если заявлен в SDC #7.
 
 PASS: каждой карточке пакета `deploy: staging@<sha>`, статус Done.
-FAIL: карточки остаются в Deploy, `PARK human`, причина и вывод devops в журнал.
+FAIL или BLOCKED: карточки остаются в Deploy, `PARK human`, причина и вывод devops в журнал.
+Нужна правка проекта: отдельная story с G4, ревью и QA. Затем повтори G7 для нового SHA.
 
 ## Гейт фичи · все stories в Done
 
 Проверки:
-- все карточки с `parent: <F>` в Done;
+- все карточки с `parent: <F>` и `excluded: false` в Done;
+- утверждённый снимок совпадает с документами на feature-ветке;
 - на HEAD feature-ветки `commands.backend.build` и `commands.backend.test` зелёные;
 - tester в режиме `regression`: все AC фичи на HEAD feature-ветки.
 
@@ -272,6 +300,9 @@ FAIL: карточки остаются в Deploy, `PARK human`, причина 
 In Development. Tester вернул FAIL, потому что не поднялся стенд: баги не создавай, `PARK
 human` с выдержкой логов из отчёта. Отдельной story, которую можно вернуть на доработку, у
 фичи здесь нет.
+`REVIEW_REQUIRED` при регрессии: запаркуй фичу. Добавленные тесты должны пройти G4,
+применимые ревью и повторную регрессию на feature-ветке. До этого PR запрещён.
+`ERROR` или `NOT_VERIFIED` при регрессии: `PARK human`. PR запрещён.
 
 PASS: draft PR (ниже). PR создан: фича → Done, поле `pr`. PR не создан (нет `gh` или remote,
 человек отклонил push): фича остаётся In Development, `PARK human`, причина «PR не создан:
@@ -287,6 +318,9 @@ PASS: draft PR (ниже). PR создан: фича → Done, поле `pr`. PR
 только `docs/spikes/`. PASS: Done и draft PR. Иначе FAIL с замечаниями.
 
 ## Draft PR
+
+Повтори проверку снимка документов. Проверь свежесть последнего QA от `Tested commit`
+до HEAD с исключением только его файла отчёта. Изменение тестов или кода требует нового QA.
 
 Тело PR собери в `.agents/cache/pr-<id>.md`: ссылка на spec и arch doc, stories с вердиктами
 ревью и QA, таблица AC → story → QA, tech-debt (MEDIUM/LOW находки), покрытие, статус staging,
@@ -354,5 +388,6 @@ QA story <S> «<title>».
 ```
 Деплой на staging. Ветка: <branch> (активна), SHA: <sha>.
 Карточки в пакете: <id, …>. SDC #4/#7 фичи: <spec или «нет»>.
+Manifest: .agents/cache/deploy-manifest.json. Manifest SHA: <artifact_manifest_sha>.
 Верни отчёт DEPLOY REPORT.
 ```

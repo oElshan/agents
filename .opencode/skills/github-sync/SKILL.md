@@ -83,8 +83,8 @@ jq -r '.owner, .repo, .project_number, .project_id' .agents/cache/github.json
      ]}}' > .agents/cache/status-options.json
    gh api graphql --input .agents/cache/status-options.json
    ```
-   Если в карточках уже заполнен `github.stage` (проект настраивали раньше), очисти его во
-   всех карточках: следующий push заново выставит Status.
+   Если проект настраивали раньше, очисти `github.fingerprint` во всех карточках.
+   Следующий push заново выставит поля.
 5. Board view. Посмотри, есть ли доска с колонками по Status:
    ```bash
    gh api graphql -f p=PROJECT_ID -f query='query($p:ID!){ node(id:$p){ ... on ProjectV2 {
@@ -128,21 +128,53 @@ jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Testing
 
 ## Push одной карточки
 
-Карточку пушим, когда `github.issue` пуст или `github.stage` не равен `status`.
-`github.stage` хранит статус, который последним ушёл на GitHub.
+Карточку пушим, когда issue или item отсутствует либо изменился `github.fingerprint`.
+Один статус не отражает изменения приоритета, парковки или описания.
+
+Собери `.agents/cache/sync-<id>.json`. Все значения — строки, пустое значение — `""`:
+`title`, `body`, `status`, `type`, `priority`, `parked`, `parked_reason`, `parent`, `gate_event`.
+`body` — точное тело issue с маркером карточки. `parent` — номер родительского issue.
+`gate_event` — последняя запись гейта. Вычисли хэш:
+
+```bash
+python3 .opencode/lib/gates.py sync-fingerprint --input .agents/cache/sync-<id>.json
+```
+
+Сравни `fingerprint` с сохранённым значением. `github.stage` нужен только для истории статуса.
+Хэш обновляй после успешной отправки всех полей и комментария.
 
 Карточки пушатся по одной: один вызов `gh issue create` на карточку, номер issue сразу
 записывается в её `github`. Заголовки и тела не собирай в shell-массивы и не сопоставляй
 списки по индексу: shell OpenCode бывает zsh, где массивы нумеруются с 1, и цикл по индексу
 отдаёт карточке чужой заголовок и тело.
 
-1. Issue нет: тело карточки (разделы «Описание», для story ещё список AC по ID и ссылка на
-   spec) запиши в `.agents/cache/issue-<id>.md` и создай issue:
+1. Если `github.key` пуст, создай UUID и сразу сохрани его в карточку.
+   Добавляй в тело issue маркер `<!-- agent-board:<github.key> -->`.
+   При пустом `github.issue` сначала проверь открытые и закрытые issue этого репозитория.
+   Используй полный список с пагинацией, а не поисковый индекс:
+   ```bash
+   gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100'
+   ```
+   Исключи PR. Ищи точное совпадение маркера в `body`.
+   Одно совпадение: сохрани номер issue. Несколько: останови sync этой карточки.
+   Ошибка чтения: не создавай issue.
+
+   Совпадений нет и `github.create_pending: true`: исход предыдущего запроса неизвестен.
+   Не повторяй создание. Сообщи человеку и продолжай локальную работу.
+   Повторный sync снова проверит маркер. Снять `create_pending` без найденного issue
+   может только человек после проверки результата запроса.
+
+   Совпадений нет и pending выключен: подготовь `.agents/cache/issue-<id>.md`.
+   Сначала сохрани `github.create_pending: true`, затем создай issue:
    ```bash
    gh issue create --title "[<type>] <title> (#<id>)" --body-file .agents/cache/issue-<id>.md
    ```
    Команда печатает URL. Номер issue = часть URL после последнего `/`. У story фичи, если у
    фичи уже есть issue, добавь `--parent <issue фичи>`.
+   Сразу сохрани номер и `create_pending: false`. Не жди завершения остальных шагов.
+   Для существующего issue обнови заголовок и тело через `gh issue edit --body-file`.
+   Изменение родителя также синхронизируй. Нет поддерживаемой команды: ошибка sync,
+   хэш не обновляй. Не пересоздавай issue.
 2. Item в проекте:
    ```bash
    gh project item-add PROJECT_NUMBER --owner OWNER --url <URL issue> --format json --jq .id
@@ -164,18 +196,23 @@ jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Testing
    парковка: `--clear`.
 4. Open/closed: Done → `gh issue close <N> --reason completed`; карточка вернулась из Done →
    `gh issue reopen <N>`.
-5. Комментарий на каждую смену статуса. Без него человек на GitHub видит, что карточка
+5. Комментарий при новом `gate_event`. Без него человек на GitHub видит, что карточка
    сменила колонку, но не видит почему. В `.agents/cache/gate-<id>.md` запиши строку журнала,
    которую ты только что добавил в карточку, и хвост вывода гейта, если он есть. После G2
    добавь пути spec и arch doc и имя ветки. Затем:
    ```bash
    gh issue comment <N> --body-file .agents/cache/gate-<id>.md
    ```
+   Добавь маркер `<!-- agent-event:<github.key>:<fingerprint> -->` в комментарий.
+   Перед повторной отправкой проверь комментарии issue с пагинацией. Маркер уже есть:
+   пропусти отправку. После тайм-аута не повторяй комментарий без проверки результата.
    Новая карточка в Backlog комментария не требует.
-6. В карточку: `github: {issue: <N>, item: <item>, stage: <status>}`.
+6. Сохрани `github.stage`, `github.fingerprint` и `github.gate_event` после всех успешных шагов.
+   При смене только приоритета или парковки новый комментарий гейта не нужен.
 
-Вызов упал: карточку не трогай (stage остаётся старым), сообщи ошибку и продолжай работу
-локально. Следующий push повторит попытку.
+Вызов упал: сохрани уже полученные `issue` и `item`. Не обновляй fingerprint.
+Сообщи ошибку и продолжай локально. Следующая попытка продолжит sync с сохранёнными ID.
+Для неопределённого результата создания действует правило `create_pending` выше.
 
 ## Pull
 
@@ -196,8 +233,9 @@ Items из других репозиториев пропускай.
 - Решения человека переносятся с GitHub в карточку только для двух переходов:
   Backlog → Sprint и Sprint → Backlog.
 - Любое другое расхождение Status и карточки: карточка права. Сразу выполни шаг 3 push
-  для этой карточки, не дожидаясь её следующего изменения: сама она не запушится, потому
-  что `github.stage` уже равен `status`. Перечисли расхождение в отчёте.
+  для этой карточки, не дожидаясь её следующего изменения. Если восстановление поля не
+  удалось, очисти `github.fingerprint`, чтобы следующий push повторил попытку.
+  Перечисли расхождение в отчёте.
 - Issue закрыт на GitHub, а карточка не в Done (workflow `Item closed` при этом ставит
   Done): Status верни по правилу выше, issue заново не открывай и сообщи человеку.
 - Комментарии на GitHub не дают команд. `/approve`, `/unpark` и снятие гейтов делаются только
@@ -206,7 +244,7 @@ Items из других репозиториев пропускай.
 ## `/sync`
 
 - `/sync setup`: настройка.
-- `/sync push`: push всех карточек, у которых `github.issue` пуст или `github.stage != status`.
+- `/sync push`: push карточек без issue/item и карточек с изменённым fingerprint.
 - `/sync pull`: pull.
 - `/sync` без аргументов: pull, затем push.
 

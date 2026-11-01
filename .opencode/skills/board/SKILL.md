@@ -38,6 +38,7 @@ ls .agents/board/ 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.md$/\1/p' | sort -n 
 | `component` | список из backend, frontend, infra, docs | все |
 | `parent` | id фичи или пусто | story, bug |
 | `spec_key` | ключ строки в таблице «Декомпозиция» spec (S1, S2…) | story фичи |
+| `excluded` | true: строка удалена из spec, карточку не запускать; по умолчанию false | story фичи |
 | `ac` | список AC ID | story, bug, tech-debt, hotfix |
 | `deps` | список id, которые должны быть в Done | все кроме feature |
 | `branch` | имя ветки | все кроме spike |
@@ -47,12 +48,15 @@ ls .agents/board/ 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.md$/\1/p' | sort -n 
 | `review` | `{security, java, frontend}`, каждое "", `n/a` или `<VERDICT>@<sha>` | story, bug, tech-debt, hotfix |
 | `coverage` | `<pct>@<sha>` | то же |
 | `qa` | `<VERDICT>@<sha>` | то же |
+| `qa_report_commit` | SHA коммита отчёта; `qa` хранит SHA проверенного кода | то же |
 | `deploy` | "" или `staging@<sha>` | то же |
+| `deploy_commit`, `artifact_manifest_sha` | SHA кода и хэш manifest из G7 | то же |
 | `spec`, `arch`, `qa_doc` | пути к документам | feature |
 | `spec_sha` | `git hash-object` spec на момент утверждения | feature |
+| `g2_snapshot`, `approved_snapshot` | SHA-256 документов, проверенных G2 и утверждённых человеком | feature |
 | `approved` | дата утверждения или "" | feature |
 | `pr` | ссылка на PR или "" | feature и самостоятельные задачи |
-| `github` | `{issue, item, stage}`, `stage` = статус, который последним ушёл на GitHub | все, в режиме github |
+| `github` | `{issue, item, stage, key, create_pending, fingerprint, gate_event}`; ID, маркеры и последний успешно отправленный снимок | все, в режиме github |
 | `created`, `updated` | YYYY-MM-DD | все |
 
 Тело карточки: разделы `## Описание`, `## Замечания к исправлению`, `## Журнал`.
