@@ -101,6 +101,8 @@ quality:
   high_load: false          # включает high-load чек-листы
 
 orchestrator:
+  parallel_stories: 2      # разные worktrees; 1 = последовательный режим
+  isolated_test_env: false # true только с проверенной изоляцией портов/БД/compose per worktree
   max_agent_runs: 40        # запусков субагентов за один /orchestrate
   stall_rounds: 3           # шагов без движения подряд → STALL
   # паузы стадий не здесь: их ставит /stage в .agents/board/stages.json (вне git)

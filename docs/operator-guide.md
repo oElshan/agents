@@ -9,6 +9,7 @@
 |---|---|
 | `/setup` | Подготовить или обновить профиль проекта. |
 | `/feature <описание>` | Создать фичу в Backlog. |
+| `/correction <story-id> <описание>` | Создать отдельную story изменения поведения с correction-спекой. |
 | `/sprint add <id>` | Взять задачу в работу. |
 | `/sprint remove <id>` | Вернуть задачу из Sprint в Backlog. |
 | `/orchestrate` | Вести задачи до остановки или запроса решения. |
@@ -60,9 +61,20 @@
 Причина находится в `parked_reason`, детали — в журнале карточки.
 Пауза стадии не заменяет успешное прохождение этой стадии.
 
-Изменение спецификации, архитектуры, профиля или правил отменяет прежний снимок утверждения.
-Нужны повторный G2 и `/approve`. Удалённые из декомпозиции задачи помечаются `excluded`.
-Они сохраняются в истории, но больше не запускаются.
+Фича имеет master и минимум одну story с собственными spec, AC, снимком утверждения и QA.
+Утверждённые specs не редактируются: изменение поведения создаёт correction дочерней story.
+`corrects` и `supersedes` сохраняют связь с прежними требованиями. Текущая регрессия учитывает
+только интегрированные corrections. Изменение профиля/архитектуры/правил требует G2 и approve,
+но не разрешает переписывать старые specs.
+
+Независимые stories идут в отдельных worktree. `orchestrator.parallel_stories: 2` задаёт
+лимит; у старых профилей без поля используется 1 до `/setup`. Зависимости, внешние blockers,
+общие файлы и ресурсы ограничивают параллельность. Merge выполняет один orchestrator;
+если база сдвинулась, story повторяет ревью и QA на обновлённой базе.
+
+[Формат графа и миграция старых спек](../.opencode/skills/write-spec/references/spec-graph.md).
+Старый монолитный файл сохраняется: новые story-файлы получают ссылки на источник и карту AC.
+Не включайте новый процесс в середине активного запуска без проверки новых контрактов.
 
 Полный процесс: [quality-gates](../.opencode/skills/quality-gates/SKILL.md).
 
@@ -150,9 +162,9 @@ Subtree — основной способ. Он сохраняет фреймв�
 ```bash
 git submodule add -b dist https://github.com/oElshan/agents.git .opencode
 git -C .opencode fetch origin --tags
-git -C .opencode checkout v2.0.0
+git -C .opencode checkout v2.1.0
 git add .gitmodules .opencode
-git commit -m "chore: connect agent team v2.0.0"
+git commit -m "chore: connect agent team v2.1.0"
 ```
 
 Для обновления существующего submodule выполните fetch, checkout нужного тега и commit

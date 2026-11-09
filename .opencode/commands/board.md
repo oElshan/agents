@@ -7,5 +7,6 @@ agent: orchestrator
 Загрузи skill `board`, прочитай доску командой из раздела «Чтение доски» и выведи её по
 разделу «Вывод /board». Ничего не меняй.
 
-`trace <F>`: таблица по AC фичи: AC → story → вердикты ревью → QA → deploy. AC без story и
-story без PASS выдели.
+`trace <F>`: master → story → correction; таблица действующих и superseded AC → карточка →
+review → QA → deploy. Покажи depends_on, blockers, ресурсы/worktrees и текущий ready-набор.
+Действующий набор AC считай через spec-effective по подтверждённым integrated_commit.

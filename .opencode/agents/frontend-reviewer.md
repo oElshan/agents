@@ -35,6 +35,10 @@ permission:
 
 ## Вход
 
+Работай в переданном абсолютном cwd worktree. Сверяй реализацию с AC своей story/correction
+и общими ограничениями master; учитывай supersedes. Проверь выход за writes и затронутые
+общие контракты. Чужая незавершённая story не является дефектом текущей.
+
 Оркестратор передаёт: id story, ветку story, базовую ветку, команду diff, SHA. Ревьюй только
 frontend-delta: файлы `*.ts *.tsx *.jsx *.html *.scss *.css` внутри путей приложений из
 `stack.frontend[].path` профиля. Игнорируй `dist/`, `node_modules/`, `coverage/`,

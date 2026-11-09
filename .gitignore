@@ -11,3 +11,4 @@
 ### Агентная команда: runtime (карточки, паузы, кэш) ###
 .agents/board/
 .agents/cache/
+.agents/worktrees/

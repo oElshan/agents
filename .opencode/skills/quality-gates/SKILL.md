@@ -35,14 +35,23 @@ python3 .opencode/lib/gates.py freshness --verified <sha> --head <story> --qa-re
 Исключение — только указанный обычный файл отчёта. Изменение тестов отменяет вердикты.
 Неизвестный SHA даёт ERROR. Коммит вне истории ветки даёт FAIL.
 
-**Утверждённые документы**:
+**Утверждённые документы и граф**:
 ```bash
-python3 .opencode/lib/gates.py contract --ref <branch> --spec <spec> --arch <arch> --expected <approved_snapshot>
+python3 .opencode/lib/gates.py spec-graph --ref <branch> --spec <unit-spec> --baseline <frozen_ref>
+python3 .opencode/lib/gates.py contract --ref <branch> --spec <unit-spec> --arch <unit-arch> --expected <approved_snapshot>
 ```
-Снимок включает spec, arch, профиль, AGENTS.md, budget, ownership-map и все файлы `.opencode`.
-Проверяй снимок feature-ветки и рабочей ветки перед G3, G4, G6, G7 и перед PR.
-Нет снимка или он изменился: `PARK human`, причина «документы изменены; нужен /approve <F>».
-Чистое дерево обязательно. Незакоммиченные документы нельзя утверждать.
+Первый вызов сохраняет неизменность ранее утверждённых spec. `frozen_ref` никогда не
+перезаписывается при переутверждении профиля/архитектуры. Для нового узла G2 вызывает
+spec-graph без baseline и отдельно проверяет замороженные основания по их frozen_ref.
+Снимок story/correction включает её файл, предков, зависимости, arch, профиль и правила;
+снимок master — master и исходные stories. Соседние stories не входят в контракт story.
+Проверяй контракт конкретной карточки на integration base и в её worktree перед G3/G4/G6/G7/PR.
+Нет снимка или изменились профиль/архитектура: PARK human, нужен G2 и `/approve <id>`.
+Изменение frozen spec нельзя легализовать повторным approve: требуется correction.
+Незакоммиченные документы нельзя утверждать; дерево соответствующего worktree чистое.
+Самостоятельные bug/tech-debt без spec используют AC карточки и существующие проверки;
+это исключение не распространяется на новый функционал.
+
 
 **Миграции**: инструмент и пути бери из профиля. Для каждого пути передай `--path`.
 ```bash
@@ -75,114 +84,110 @@ python3 .opencode/lib/gates.py coverage --base <base> --head <story> --minimum <
 - дерево чистое.
 
 Действия: `git switch <default>`, затем `git switch -c feature/<F>-<slug>` (если ветка уже
-есть: `git switch feature/<F>-<slug>`). В карточку: `branch`, `spec: docs/specs/<F>-<slug>.md`,
-`arch: docs/arch/<F>-<slug>.md`, `qa_doc: docs/qa/<F>-<slug>.md`, статус Analysis.
+есть: `git switch feature/<F>-<slug>`). В карточку: `branch`, `spec: docs/specs/F<F>-<slug>/master.md`,
+`arch: docs/arch/<F>-<slug>.md`, `qa_doc: docs/qa/F<F>/regression.md`, статус Analysis.
 Нет бизнес-ценности: FAIL, карточка остаётся в Sprint, спроси человека.
 
 ## Analysis
 
-1. analyst (шаблон ниже) → отчёт `ANALYST DONE`.
-2. architect → отчёт `ARCHITECT DONE`. `BLOCKED: spec неполная` → снова analyst с этим списком.
-3. G2.
+Фича: analyst создаёт master + отдельные story-файлы, architect проверяет контракты и DAG.
+Correction из Sprint: выбери её integration branch. Если feature не завершена — feature-ветка;
+если feature Done — новая `change/<spec-id>-<slug>` от default, историческую feature не меняй.
+Done означает draft PR, а не релиз: сначала проверь, что исходная реализация и specs
+попали в default. Если PR ещё не смёржен — PARK deps. При squash используй подтверждённый
+merge SHA исходного PR и сопоставление spec-файлов/реализации, сохрани released_commit
+и evidence в журнале. При проверке deps допускается этот SHA вместо integrated_commit.
+Карточку correction переведи в Analysis; analyst пишет новый файл по correction-template,
+architect — `docs/arch/<spec-id>.md`. Старые spec и arch остаются неизменными.
+Анализ общих документов выполняй последовательно, без конкурирующего писателя в этом checkout.
+BLOCKED → уточнение черновиков; затем G2. Standalone функционал сначала получает feature.
 
-## G2 · Analysis → Ready for Dev (feature)
+## G2 · Analysis → Ready for Dev
 
-На чистой feature-ветке сначала вызови `contract` без `--expected`. Сохрани начальный
-`snapshot`. После чек-листа повтори вызов. Снимки должны совпасть.
+На чистой ветке вызови `spec-graph --spec <master-or-correction>`, затем `contract` без expected.
+Для каждого ранее утверждённого основания выполни spec-graph с его frozen_ref. После ручной
+проверки повтори contract: снимок должен совпасть с первым вызовом.
 
-Проверки на feature-ветке:
-- spec содержит обязательные разделы шаблона (skill `write-spec`);
-- AC: заголовки `### AC-<F>-NN`, ID уникальны, у каждого Given/When/Then и строка
-  `Проверка: stand | integration | unit`:
-  ```bash
-  grep -oE '^### AC-<F>-[0-9]+' <spec> | sort | uniq -d          # дубли: должно быть пусто
-  grep -cE '^### AC-<F>-[0-9]+' <spec>; grep -c '^Проверка:' <spec> # числа равны
-  ```
-- SDC: восемь слотов, в каждом решение или `N/A: <причина>`; либо весь блок
-  `SDC: N/A — <причина>`, если фича под это подпадает (skill `sdc`);
-- «Декомпозиция»: каждый AC фичи покрыт хотя бы одной story, у каждой story есть AC,
-  размер xs, s или m, зависимости ссылаются на существующие ключи и не образуют цикл;
-- arch doc есть и содержит разделы шаблона (skill `design-change`);
-- новый модуль, сервис, очередь или внешняя интеграция при пороге из `budget.md`: в arch doc
-  есть ADR; новые таблицы, очереди, endpoints внесены в `ownership-map.md`;
-- изменения закоммичены, дерево чистое.
+Проверь:
+- master имеет цель, общие ограничения, FR и минимум одну story; каждый FR покрыт ссылкой;
+- каждая story/correction — отдельный файл по шаблону, свои AC/SDC/QA/откат;
+- у каждого AC Given/When/Then и проверка stand/integration/unit; ID уникален и принадлежит узлу;
+- DAG без циклов/битых ссылок; parent корректен; correction явно задаёт corrects/supersedes;
+- writes/reads/resources полны (код, тесты, DTO, сборка, миграции, стенд), blockers объяснены;
+- arch готов, ADR и карты ресурсов соответствуют требованиям; открытые вопросы, меняющие
+  контракт, закрыты; числовые NFR и SDC проверены по write-spec/sdc/design-change;
+- изменения закоммичены, старые specs не изменены.
 
-FAIL: снова analyst или architect с перечнем замечаний. После `quality.fix_loop_max` неудачных
-G2 подряд: `PARK attempts`.
+FAIL → analyst/architect с замечаниями; после fix_loop_max — PARK attempts. ERROR → PARK human.
+PASS → `g2_snapshot`, `g2_ref`. При human покажи дерево/AC/зависимости/возможные параллельные
+группы и жди `/approve <id>`. При auto выполни те же проверки утверждения без ожидания.
 
-PASS:
-- запиши `g2_snapshot` из результата `contract` вместе с G2 PASS;
-- `gates.spec_approval: human` (по умолчанию): `parked: human`, причина «ждёт /approve <F>».
-  Человеку выведи: путь к spec, число AC и stories, ADR, открытые вопросы analyst.
-- `gates.spec_approval: auto`: сразу выполни шаги утверждения ниже.
+## Утверждение (`/approve <id>` или auto)
 
-## Утверждение (`/approve <F>` или auto)
+1. Чистое дерево, G2 PASS и `contract --expected <g2_snapshot>` на том же наборе документов.
+   Снимок сдвинулся — новый G2. Замороженные specs сверяются с прежним frozen_ref.
+2. Первое approve feature: создай по карточке на каждый файл из master.stories (даже одну),
+   `type: story`, Ready for Dev. Свяжи spec IDs с числовыми card IDs; не редактируй specs.
+   Сохрани feature snapshot и отдельный contract snapshot для каждой story, а также
+   собственные `g2_snapshot`/`g2_ref`, `approved_ref`, `frozen_ref`, `approved`, `spec_sha`, `spec`, `master_spec`, `spec_id`, `arch`,
+   `qa_doc`, `deps`, `blockers`, `writes`, `reads`, `resources`. Feature → Ready for Dev.
+3. Первое approve correction: обнови только её карточку, вычисли собственный contract,
+   привяжи origin_story, prerequisites (parent + corrects + depends_on), новый arch и QA path.
+   Correction → Ready for Dev. Исторические карточки и snapshots остаются прежними.
+4. Повторное approve разрешено для профиля/архитектуры/правил, если все frozen specs неизменны.
+   Сначала повтори G2 для затронутых узлов; обнови их approved_snapshot/approved_ref, сохраняя
+   frozen_ref. Очисти review/coverage/QA/deploy незавершённых затронутых карточек; начатые
+   верни в In Development. Done автоматически не переоткрывай, историю вердиктов сохрани.
+   Feature approve не утверждает добавленные corrections: каждой нужен отдельный approve.
+5. Сними только парковку по утверждению/дрейфу этого контракта. Запиши журнал и снимки.
+   Удалять строки декомпозиции, менять AC или исключать утверждённую story повторным approve
+   запрещено. Изменение scope — correction/новая feature; старые карточки сохраняются.
 
-**Первое утверждение**, фича в Analysis:
-
-1. Проверь последний G2 PASS и чистое дерево. Вызови `contract --expected <g2_snapshot>`
-   на feature-ветке. Несовпадение: повтори G2 и запроси новое утверждение.
-2. Запиши `approved_snapshot = g2_snapshot`, `spec_sha` из результата проверки и дату `approved`.
-   Сними парковку.
-3. Создай карточки stories по таблице «Декомпозиция» (skill `board`).
-4. Фича → Ready for Dev.
-
-**Повторное утверждение**, фича в Ready for Dev или In Development, а снимок документов
-не совпадает с `approved_snapshot`:
-
-1. Проверь изменённую spec по чек-листу G2, без analyst и architect. FAIL: откажи и перечисли
-   замечания, spec правит человек.
-2. Обнови `g2_snapshot`, `approved_snapshot`, `spec_sha` и `approved`.
-3. Сверь таблицу «Декомпозиция» с карточками фичи по `spec_key`:
-   - строка без карточки: создай story в Ready for Dev;
-   - у незавершённых stories обнови `ac`, `deps`, `priority`, `size`. Очисти `review`,
-     `coverage`, `qa`, `qa_report_commit`, `deploy_commit`, `artifact_manifest_sha` и `deploy`.
-     Начатые stories верни в In Development. Это нужно и при изменении текста AC без смены ID;
-   - строка удалена: поставь `excluded: true`, `parked: human`, причина «story исключена из spec».
-     Не запускай её. Сохрани карточку и историю. Возврат строки снимает `excluded`;
-   - Done не переоткрывай автоматически. Перечисли такие stories человеку. Регрессия
-     проверит новые AC. Если изменённый код нужно удалить, создай отдельную задачу.
-4. Сними только парковки по дрейфу документов у stories с `excluded: false`.
-   Запрети утверждение, если зависимость активной story указывает на исключённую story.
-5. В журнал: `повторно утверждена · approved_snapshot <старый> → <новый>`.
 
 ## G3 · Ready for Dev или Sprint → In Development
 
 Проверки:
-- нет другой активной story (In Development, Code Review или Testing без парковки);
-- все `deps` в Done;
-- у story фичи: фича утверждена, снимок документов совпадает, `excluded: false`, каждый AC есть в spec;
-- у самостоятельной задачи: в теле карточки есть AC с ID и строкой «Проверка»;
-- дерево чистое.
+- есть свободный слот и нет конфликтов по `parallel-stories`; ресурс/checkout не занят;
+- prerequisites интегрированы и их integrated_commit входит в выбранную базу;
+- внешние blockers закрыты с evidence; spec-plan допускает задачу;
+- story/correction утверждена, собственный снимок совпадает, frozen specs сохранены;
+- `excluded: false`; AC взяты из своей spec; standalone bug/tech-debt имеют AC в карточке;
+- дерево целевого worktree чистое.
 
-Действия:
-- `git switch <base>` и сборка базы `commands.backend.build` (и frontend build затронутых
-  приложений). Сломана: `PARK human`, причина «база не собирается», вывод в журнал.
-- `git switch -c story/<S>-<slug>`. Если ветка уже есть, это возобновление (раздел ниже).
-- В карточку `branch`, статус In Development. Если родительская фича в Ready for Dev, переведи
-  её в In Development.
-- Запусти developer.
+Standalone bug/tech-debt без spec/v1 выполняй эксклюзивно, не параллельно другим писателям.
+
+Действия: orchestrator резервирует ресурсы и создаёт выделенный worktree от `<base>` по
+parallel-stories. Сохрани `base_commit`, проверь сборку базы в worktree; сломана — PARK human.
+Передай developer абсолютный cwd, spec/master/arch, AC и области записи. Статус In Development.
+Незавершённая родительская feature переходит в In Development при первой story. Для correction
+выпущенной feature её исторический Done остаётся без изменений.
+
 
 ## Возобновление story
 
 Story после парковки или после ожидания, пока шла другая story, могла отстать от базы.
 
-1. `git switch <story>`, затем:
+1. В назначенном worktree проверь ветку `<story>` и чистоту; затем:
    ```bash
    git merge-base --is-ancestor <base> <story> && echo up-to-date
    ```
-2. Отстала: `git merge --no-ff <base> -m "merge(<S>): update from <base>"`.
+2. Отстала: orchestrator выполняет `git merge --no-ff <base> -m "merge(<S>): update from <base>"`.
    - Конфликт: merge не прерывай, статус In Development, запусти developer с задачей
      «разреши конфликты» (шаблон developer, последняя строка).
    - Без конфликта: вердикты ревью и QA устарели. Статус In Development и сразу G4 без
      developer: если G4 PASS, story идёт в Code Review заново.
-3. Не отстала: продолжай с текущего статуса.
+3. Не отстала: продолжай с текущего статуса. После обновления базы запиши base_commit.
+   Ресурсы повторно резервируются перед возобновлением; парковка не даёт обхода spec-plan.
 
 ## G4 · In Development → Code Review
 
+Developer вернул WAIT_RESOURCE: оставь In Development/execution: waiting, выдай ресурс
+после освобождения и возобнови task; attempts не меняй. G4 начинается после DONE.
 Developer вернул `BLOCKED`: `PARK human` с его причиной.
 
-Проверки на ветке story:
+Проверки в назначенном worktree story:
+- `spec-scope --spec <unit-spec> --base <base_commit> --head <story> --qa-report <qa_doc>` PASS
+  для story/correction с отдельной spec; выход за область — PARK human до согласования нового контракта;
 - дерево чистое, есть коммиты `git log --oneline <base>..<story>`;
 - применённые миграции не тронуты;
 - сборка и lint: `commands.backend.build`, `commands.backend.lint` (если задан), для
@@ -225,6 +230,10 @@ FAIL: In Development, `attempts + 1`, каждая CRITICAL/HIGH находка 
 
 ## G6 · Testing → merge → Ready to Deploy или Done
 
+Интегратор берёт единственную очередь merge. Если HEAD базы отличается от base_commit,
+обнови story по «Возобновление story», сбрось старые вердикты и повтори G4 → ревью → QA.
+Даже чистое слияние новой базы не сохраняет старый PASS. Повторно проверь базу сразу перед merge.
+
 Проверки:
 - tester вернул `VERDICT: PASS`; `Tested commit` — версия кода до записи QA-отчёта;
 - `Report commit` равен HEAD. Проверка `freshness` от `Tested commit` до HEAD даёт PASS
@@ -243,16 +252,31 @@ story снова идёт в Testing.
 Этот возврат сам по себе не увеличивает `attempts`.
 
 PASS:
-- story фичи: `git switch <feature-branch>`, `git merge --no-ff <story> -m "merge(<S>): <title>"`.
-  Конфликт: `git merge --abort`, `PARK conflict`. После мёржа `git branch -d <story>`.
-- самостоятельная задача: не мёржится, PR откроется после Done.
-- запиши `qa: PASS@<tested_commit>` и `qa_report_commit: <report_commit>`;
-- если задан `commands.deploy.staging`: Ready to Deploy. Пауза сохраняет этот статус;
-- если staging не настроен: Done.
+- story незавершённой фичи: в интеграционном checkout влей `<story>` в feature-ветку;
+- correction выпущенной фичи: влей `<story>` в её `change/<spec-id>-<slug>`;
+- merge только orchestrator: `git merge --no-ff <story> -m "merge(<S>): <title>"`.
+  Конфликт: `git merge --abort`, PARK conflict; дальнейшее обновление делается в worktree story;
+- запиши `integrated_commit`, проверь вхождение проверенного SHA в integration branch;
+  сохрани `qa: PASS@<tested_commit>` и `qa_report_commit: <report_commit>`;
+- освободи ресурсы/удали чистый worktree после завершения task, затем можно удалить story-ветку;
+- standalone bug/tech-debt остаётся в своей ветке до PR;
+- staging настроен → Ready to Deploy (пауза сохраняет статус); иначе → Done.
+
+Для correction с завершённой feature после стадий выполни regression затронутой фичи на
+change-ветке (effective AC с этой correction), затем отдельный draft PR в default. Done
+без pr остаётся незавершённой финализацией для петли, даже если G6/G8 уже пройдены. Если PR
+не создан — PARK human с причиной. Регрессия выявила дефект текущей correction — верни
+её в In Development в восстановленном worktree с новой базой, очисти verdict и повтори
+G4–G6; старую feature не открывай. Дефект прежнего поведения — отдельный bug с действующим AC.
+NOT_VERIFIED/ERROR/REVIEW_REQUIRED обрабатывай как в гейте фичи. Только PASS и созданный PR
+завершают цикл; исторические docs и карточки сохраняются.
+
 
 ## G7 · Ready to Deploy → Deploy
 
-Пакет: все карточки в Ready to Deploy одной ветки (feature-ветка или ветка задачи).
+Пакет: все карточки в Ready to Deploy одной integration_branch (feature, change или задача).
+На всё время G7/G8 зарезервируй deploy:staging и checkout этой ветки. Merge/анализ в него
+запрещены до отчёта devops; другие story-worktrees могут продолжать независимую работу.
 
 Проверки:
 - стадия deploy включена. На паузе пакет остаётся в Ready to Deploy;
@@ -291,10 +315,13 @@ FAIL или BLOCKED: карточки остаются в Deploy, `PARK human`, 
 ## Гейт фичи · все stories в Done
 
 Проверки:
-- все карточки с `parent: <F>` и `excluded: false` в Done;
-- утверждённый снимок совпадает с документами на feature-ветке;
+- все исходные stories master и все принятые в Sprint corrections/bugs этой integration_branch
+  с `parent: <F>` и `excluded: false` в Done; новый Backlog-intake не расширяет scope текущего PR;
+- все утверждённые контракты master/stories/включённых corrections совпадают; frozen specs неизменны;
 - на HEAD feature-ветки `commands.backend.build` и `commands.backend.test` зелёные;
-- tester в режиме `regression`: все AC фичи на HEAD feature-ветки.
+- tester в режиме `regression`: действующие AC интегрированных stories/corrections на HEAD.
+  Собери их через `spec-effective --spec <master> --integrated <spec-id> ...`; передавай только
+  spec ID с подтверждённым integrated_commit в этой ветке. superseded AC остаются историей.
 
 Регрессия упала: на каждый сломанный AC создай баг в Sprint (skill `board`), фича остаётся
 In Development. Tester вернул FAIL, потому что не поднялся стенд: баги не создавай, `PARK
@@ -322,7 +349,7 @@ PASS: draft PR (ниже). PR создан: фича → Done, поле `pr`. PR
 Повтори проверку снимка документов. Проверь свежесть последнего QA от `Tested commit`
 до HEAD с исключением только его файла отчёта. Изменение тестов или кода требует нового QA.
 
-Тело PR собери в `.agents/cache/pr-<id>.md`: ссылка на spec и arch doc, stories с вердиктами
+Тело PR собери в `.agents/cache/pr-<id>.md`: дерево master → stories → corrections, ссылки на arch, stories с вердиктами
 ревью и QA, таблица AC → story → QA, tech-debt (MEDIUM/LOW находки), покрытие, статус staging,
 план отката из spec, что не проверено.
 
@@ -337,21 +364,33 @@ gh pr create --draft --base <default> --head <branch> --title "<id>: <title>" --
 
 ## Шаблоны задач для субагентов
 
-Подставь значения. Тексты карточек передавай путём к файлу, не пересказом.
+Подставь значения. Каждому task обязательно передай абсолютный cwd, ожидаемые branch/HEAD,
+абсолютный путь центральной карточки, spec/master/arch, AC и writes/reads/resources. Агент
+подтверждает корень/ветку/HEAD и адресует все инструменты этому cwd. Карточку передавай файлом.
+Для tester/review correction передавай effective AC, для regression — подтверждённые integrated IDs.
 
 **analyst**
 ```
 Spec для фичи <F> «<title>».
 Карточка: .agents/board/<F>.md
-Ветка: feature/<F>-<slug> (активна). Spec: docs/specs/<F>-<slug>.md
+Ветка: feature/<F>-<slug> (активна). Master: docs/specs/F<F>-<slug>/master.md; story specs: <пути>
 Замечания G2: <список или «нет»>
 Верни отчёт ANALYST.
+```
+
+**analyst / architect для correction**
+```
+Correction <spec-id> к story <origin-story-id>. Карточка: <абсолютный путь>.
+Cwd: <абсолютный checkout>; branch/HEAD: <ожидаемые значения>.
+Master: <путь>. Исходная story: <путь>. Corrects: <пути>; supersedes: <AC IDs>.
+Новый файл: <correction path>. Новый arch: docs/arch/<spec-id>.md.
+Старые specs/arch не редактировать. Верни ANALYST / ARCHITECT с графом и границами записи.
 ```
 
 **architect**
 ```
 Arch doc для фичи <F> «<title>».
-Spec: docs/specs/<F>-<slug>.md. Arch doc: docs/arch/<F>-<slug>.md
+Master: docs/specs/F<F>-<slug>/master.md; story specs: <пути>. Arch doc: docs/arch/<F>-<slug>.md
 Ветка: feature/<F>-<slug> (активна). Замечания G2: <список или «нет»>
 Верни отчёт ARCHITECT.
 ```
@@ -371,7 +410,7 @@ Spec: <путь или «AC в карточке»>. Arch doc: <путь или �
 Ревью story <S> «<title>».
 Ветка: <story>, база: <base>, SHA: <sha>
 Diff: git diff <base>...<story>
-Spec (для SDC): <путь или «нет»>. AC story: <AC-…>
+Master / Story / Correction (для SDC): <пути или «нет»>. AC story: <AC-…>
 Верни отчёт <SECURITY|JAVA|FRONTEND> REVIEW.
 ```
 
@@ -379,15 +418,15 @@ Spec (для SDC): <путь или «нет»>. AC story: <AC-…>
 ```
 QA story <S> «<title>».
 Ветка: <story> (активна), SHA: <sha>. AC: <AC-…>
-Где AC: <spec или карточка>. QA-документ: <docs/qa/…>
-Режим: story | regression (все AC фичи на HEAD <feature-branch>)
+Где AC: <story/correction spec или карточка>; effective AC: <список>. QA-документ: <docs/qa/…>
+Режим: story | regression (действующие AC фичи на переданном integration HEAD)
 Верни отчёт QA REPORT.
 ```
 
 **devops**
 ```
 Деплой на staging. Ветка: <branch> (активна), SHA: <sha>.
-Карточки в пакете: <id, …>. SDC #4/#7 фичи: <spec или «нет»>.
+Карточки в пакете: <id, …>. SDC #4/#7: <master + story/correction specs пакета>.
 Manifest: .agents/cache/deploy-manifest.json. Manifest SHA: <artifact_manifest_sha>.
 Верни отчёт DEPLOY REPORT.
 ```

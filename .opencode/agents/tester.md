@@ -52,8 +52,10 @@ permission:
 ## Вход
 
 Оркестратор передаёт: id story, ветку (ты на ней), SHA, список AC по ID, путь к spec или
-карточке с AC, путь QA-отчёта `docs/qa/<F>-<slug>.md`. Если передан режим `regression`,
-проверь все AC фичи на HEAD feature-ветки.
+карточке с AC, абсолютный cwd и уникальный QA path: `docs/qa/F<F>/S<N>[-C<K>].md`. Если передан режим `regression`,
+проверь действующий набор AC всех интегрированных stories/corrections на переданном SHA.
+Не включай ещё не интегрированные corrections; правила supersedes — в write-spec/references/spec-graph.md.
+Общий стенд запускай только с выданной orchestrator блокировкой; cwd и HEAD должны совпадать с задачей.
 
 ## Порядок работы
 
@@ -87,12 +89,12 @@ Tested commit: <sha кода до QA-отчёта; при REVIEW_REQUIRED — no
 Report commit: <sha коммита только с QA-отчётом; при REVIEW_REQUIRED — n/a>
 VERDICT: PASS | FAIL | NOT_VERIFIED | ERROR | REVIEW_REQUIRED
 AC:
-- AC-<F>-01: PASS — <запрос> → <статус/фрагмент ответа>
-- AC-<F>-02: FAIL — expected <…>, actual <…> · repro: <шаги> · severity: critical|high|medium|low
-- AC-<F>-03: NOT_VERIFIED — <почему>
+- AC-<spec-id>-01: PASS — <запрос> → <статус/фрагмент ответа>
+- AC-<spec-id>-02: FAIL — expected <…>, actual <…> · repro: <шаги> · severity: critical|high|medium|low
+- AC-<spec-id>-03: NOT_VERIFIED — <почему>
 AUTOTESTS: <команда> → SUCCESS (<n> tests) | FAILED (<фрагмент>)
 BUILD: <команда> → SUCCESS | FAILED
-QA DOC: docs/qa/<F>-<slug>.md · commit <sha>
+QA DOC: <уникальный путь story/correction или regression> · commit <sha>
 TEST CHANGES (если REVIEW_REQUIRED): <коммит тестов и список файлов>
 REGRESSION (если режим regression): <AC другой story, который сломался: id story, AC, evidence>
 ```

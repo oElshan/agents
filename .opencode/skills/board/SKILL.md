@@ -20,8 +20,9 @@ description: Локальная доска задач в .agents/board - фор�
 ls .agents/board/ 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.md$/\1/p' | sort -n | tail -1
 ```
 
-Пусто → id = 1. AC фичи получают ID `AC-<id фичи>-<NN>`, самостоятельной задачи
-`AC-<id задачи>-<NN>`.
+Пусто → id = 1. Выдаёт только один orchestrator. Spec IDs независимы от card IDs:
+F12-S1 может соответствовать карточке 13. AC story/correction получают namespace spec ID,
+например AC-F12-S1-01. У standalone bug/tech-debt остаётся AC-<card-id>-NN.
 
 ## Формат карточки
 
@@ -37,10 +38,16 @@ ls .agents/board/ 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.md$/\1/p' | sort -n 
 | `size` | xs, s, m, l (l только у feature) | все |
 | `component` | список из backend, frontend, infra, docs | все |
 | `parent` | id фичи или пусто | story, bug |
-| `spec_key` | ключ строки в таблице «Декомпозиция» spec (S1, S2…) | story фичи |
-| `excluded` | true: строка удалена из spec, карточку не запускать; по умолчанию false | story фичи |
+| `spec_key`, `spec_id` | локальный ключ S1/S1-C1 и полный ID F12-S1/F12-S1-C1 | story |
+| `work_kind`, `origin_story` | implementation или correction; id исходной story для correction | story |
+| `excluded` | legacy-флаг; не запускать. Утверждённые stories новой схемы не исключаются правкой spec | story |
 | `ac` | список AC ID | story, bug, tech-debt, hotfix |
-| `deps` | список id, которые должны быть в Done | все кроме feature |
+| `deps` | card IDs prerequisites; их G6/integrated_commit должны входить в базу задачи | все кроме feature |
+| `blockers`, `resolved_blockers` | ключи внешних условий; закрытия с evidence в журнале | story |
+| `writes`, `reads`, `resources` | зеркало утверждённых границ/ресурсов, не отдельный контракт | story |
+| `worktree`, `base_commit`, `integration_branch` | абсолютный cwd, SHA базы, ветка интеграции | задачи |
+| `released_commit` | подтверждённый merge SHA исходного PR при squash; evidence сопоставления в журнале | story |
+| `execution`, `integrated_commit` | reserved/running/waiting/idle; SHA после G6 merge | задачи |
 | `branch` | имя ветки | все кроме spike |
 | `attempts` | число возвратов в In Development | story, bug, tech-debt, hotfix |
 | `parked` | "", deps, human, attempts, conflict | все |
@@ -51,10 +58,11 @@ ls .agents/board/ 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.md$/\1/p' | sort -n 
 | `qa_report_commit` | SHA коммита отчёта; `qa` хранит SHA проверенного кода | то же |
 | `deploy` | "" или `staging@<sha>` | то же |
 | `deploy_commit`, `artifact_manifest_sha` | SHA кода и хэш manifest из G7 | то же |
-| `spec`, `arch`, `qa_doc` | пути к документам | feature |
-| `spec_sha` | `git hash-object` spec на момент утверждения | feature |
-| `g2_snapshot`, `approved_snapshot` | SHA-256 документов, проверенных G2 и утверждённых человеком | feature |
-| `approved` | дата утверждения или "" | feature |
+| `spec`, `master_spec`, `arch`, `qa_doc` | свой документ, master, архитектура, уникальный QA | feature/story |
+| `spec_sha` | blob SHA своей spec при approve | feature/story |
+| `g2_snapshot`, `approved_snapshot` | SHA-256 своего контрактного набора | feature/story |
+| `g2_ref`, `approved_ref`, `frozen_ref` | Git SHA G2/approve; frozen_ref первого approve неизменен | feature/story |
+| `approved` | дата утверждения или "" | feature/story |
 | `pr` | ссылка на PR или "" | feature и самостоятельные задачи |
 | `github` | `{issue, item, stage, key, create_pending, fingerprint, gate_event}`; ID, маркеры и последний успешно отправленный снимок | все, в режиме github |
 | `created`, `updated` | YYYY-MM-DD | все |
@@ -91,18 +99,30 @@ grep -H -E '^(type|status|priority|parent|deps|parked|attempts|title):' .agents/
 нефункциональные требования, риски. Перед созданием проверь дубли:
 `grep -il "<ключевые слова>" .agents/board/*.md`.
 
-**Stories фичи** (после G2 и утверждения): по одной карточке на строку таблицы
-«Декомпозиция» в spec. `status: Ready for Dev`, `parent`, `spec_key`, `ac`, `priority`,
-`size`, `component` из таблицы. `deps`: переведи ключи S1, S2 в выданные id. Spec не правь.
+**Stories фичи** (после G2 и approve): по карточке на файл из master.stories, минимум одна.
+Ready for Dev, parent — id feature, spec_key/spec_id, собственные spec/arch/qa_doc/snapshot.
+AC из своего файла; deps из depends_on переведи в card IDs. Blockers и scope скопируй
+из утверждённого frontmatter. Старую spec не дописывай номером карточки.
+
+**Correction**: type story, work_kind correction, parent feature, origin_story. Новый файл,
+свой spec_id, AC, arch и snapshot. Parent story + corrects + depends_on входят в deps.
+Создай Backlog по `/correction`, затем Sprint → Analysis → G2 → approve. Done feature
+не переоткрывай; correction получает отдельную integration_branch от default.
+
 
 **Баг из регрессии фичи**: `type: bug`, `status: Sprint`, `parent: <фича>`, `ac: [AC проваленного
-сценария]`, описание: repro, expected, actual, evidence из отчёта tester.
+сценария]`, `spec` и `master_spec` указывают действующий контракт, `arch` — архитектуру
+исходной story, `qa_doc` — отдельный файл бага. Собственный contract snapshot проверяется G3;
+описание: repro, expected, actual, evidence из отчёта tester.
 
 **Задача от человека** (story, bug, tech-debt, hotfix, spike вне фичи): `status: Backlog`,
-AC в теле карточки. Hotfix создаётся с `priority: critical` и человек сам кладёт его в Sprint.
+Новый функционал типа story сначала получает feature + story-spec. Bug/tech-debt/hotfix
+без изменения ожидаемого поведения могут иметь AC в теле карточки. Hotfix создаётся с `priority: critical` и человек сам кладёт его в Sprint.
 
 ## Вывод `/board`
 
 Колонки по статусам слева направо. В строке карточки: id, тип, приоритет, название, у story
 вердикты ревью и QA, у фичи прогресс `Done/всего stories`. Отдельно: запаркованные (с
-причиной), заблокированные зависимостями (чем), число карточек в Backlog.
+причиной), prerequisites/blockers (с evidence закрытия), занятые ресурсы/worktrees и ready
+для параллельного запуска. `/board trace <F>` показывает master → story → correction,
+AC → replaces/replaced-by → карточка → review/QA/deploy; действующие и исторические AC различай.

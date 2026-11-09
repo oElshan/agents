@@ -8,9 +8,9 @@
 | Агент | Где работает | Что делает |
 |---|---|---|
 | `orchestrator` | главный агент сессии | Ведёт доску, переключает ветки, запускает субагентов, проверяет гейты G1–G8, мёржит story в feature-ветку, открывает draft PR. Единственный, кто пишет карточки |
-| `analyst` | субагент | Spec фичи: требования, AC с ID, SDC, декомпозиция на stories |
+| `analyst` | субагент | Master, story и correction specs: требования, AC, SDC, связи и границы записи |
 | `architect` | субагент | Arch doc, ADR, `budget.md`, `ownership-map.md` |
-| `developer` | субагент | Код и unit-тесты story в текущей ветке, коммиты |
+| `developer` | субагент | Код и unit-тесты story/correction в выделенном worktree, коммиты |
 | `security-reviewer` | субагент, только чтение | OWASP, auth, секреты. Всегда в Code Review |
 | `java-reviewer` | субагент, только чтение | Java/Spring, JPA, high-load, сверка кода с SDC. Если в delta есть backend |
 | `frontend-reviewer` | субагент, только чтение | Angular/React. Если в delta есть frontend |
@@ -41,7 +41,7 @@ Backlog → Sprint → Analysis → Ready for Dev → In Development → Code Re
 
 ## Ветки
 
-- Фича: `feature/<F>-<slug>` от `project.default_branch`. Здесь лежат spec, arch doc и
+- Фича: `feature/<F>-<slug>` от `project.default_branch`. Здесь лежат master, story specs, arch doc и
   смёрженные stories.
 - Story фичи: `story/<S>-<slug>` от feature-ветки. Самостоятельная задача (bug, tech-debt,
   hotfix без фичи): `story/<S>-<slug>` от default branch.
@@ -51,11 +51,26 @@ Backlog → Sprint → Analysis → Ready for Dev → In Development → Code Re
 
 ## Требования и ID
 
-- AC существует в одном месте: в spec фичи (`docs/specs/<F>-<slug>.md`) или, у самостоятельной
-  задачи, в теле её карточки. ID: `AC-<F>-<NN>`, например `AC-12-03`.
-- Карточки, отчёты ревью, отчёты QA и тесты ссылаются на AC по ID и не копируют текст.
-- Утверждение связано со снимком spec, arch, профиля и правил проекта.
-  После изменения этих документов нужен повторный `/approve`.
+- Каждая фича имеет master-спеку `docs/specs/F<F>-<slug>/master.md` и минимум одну отдельную
+  story-спеку. Feature не реализуется напрямую, story — минимальная единица функционала.
+- AC принадлежат story (`AC-F<F>-S<N>-NN`) или correction (`AC-F<F>-S<N>-C<K>-NN`).
+  Master хранит цель, общие ограничения и ссылки; карточки и отчёты ссылаются на AC по ID.
+- Иерархия и машинные связи: skill `write-spec`, `references/spec-graph.md`.
+  Markdown + frontmatter + полные Obsidian wikilinks хранятся в Git.
+- После approve spec неизменяема. Изменение поведения — отдельная correction дочерней story,
+  с новыми AC и ссылками corrects/supersedes. Исправление отклонения кода от действующих AC — bug.
+- Снимки утверждения отдельные для story/correction. Новая correction не меняет старые файлы.
+  Изменение профиля/архитектуры требует переутверждения снимка, но не разрешает переписать spec.
+- Standalone новый функционал сначала получает master + story; bug/tech-debt/hotfix без
+  изменения поведения могут остаться самостоятельными задачами с AC в карточке.
+
+## Параллельная работа
+
+Независимые stories запускаются в отдельных worktree, по skill `parallel-stories`.
+Один orchestrator пишет доску и последовательно интегрирует результаты. Учитываются
+функциональные зависимости, внешние blockers, области writes/reads и общие resources.
+Общий стенд и staging сериализуются, если их изоляция не подтверждена профилем.
+Каждый агент получает свой абсолютный cwd; переключать ветки главного checkout ему нельзя.
 
 ## Вердикты
 

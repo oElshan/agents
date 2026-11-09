@@ -30,7 +30,7 @@ e2e-tests/
 
 ## Правила
 
-- Один TC из `docs/qa/<F>-<slug>.md` → один `@Test` с `@DisplayName("TC-<F>-NNN: …")` и
+- Один TC из `docs/qa/F<F>/S<N>[-C<K>].md` или `regression.md` → один `@Test` с `@DisplayName("TC-<spec-id>-NNN: …")` и
   Javadoc со ссылкой на AC.
 - Селекторы только `[data-testid='…']`, они живут в Page Object как константы. В тестах
   селекторов нет.
@@ -53,7 +53,7 @@ class OrderExportE2ETest extends BaseE2ETest {
         orders = new OrdersPage(page);
     }
 
-    /** TC-12-001 · AC-12-01 */
+    /** TC-F12-S1-001 · AC-F12-S1-01 */
     @Test
     @DisplayName("TC-12-001: менеджер выгружает заказы в CSV")
     void managerExportsOrders() {
