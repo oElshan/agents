@@ -27,7 +27,10 @@ description: Подключение проекта к агентной кома�
    человеку итог одной таблицей (стек, команды, стенд, деплой, пороги) и спроси:
    - режим доски: `local` или `github`;
    - утверждение spec человеком (`gates.spec_approval`): `human` (по умолчанию) или `auto`;
+   - параллельность stories (по умолчанию 2 worktrees), доступность изоляции cwd;
    - пороги покрытия, если 95/50 не подходят.
+   Для isolated_test_env: true проверь уникальность портов, БД и compose names. Без этого
+   разработка может идти параллельно, команды общего стенда — последовательно.
    После подтверждения поставь `initialized: true`, `updated`.
    Если staging включён, настрой `prepare_artifact`, `observe_artifact`, `status` и smoke.
    Команды артефактов возвращают формат из `.opencode/lib/README.md`.
@@ -45,6 +48,7 @@ description: Подключение проекта к агентной кома�
    ```
    .agents/board/
    .agents/cache/
+   .agents/worktrees/
    ```
 8. **Доска.** `mkdir -p .agents/board`. Режим `github`: выполни настройку из skill
    `github-sync`.

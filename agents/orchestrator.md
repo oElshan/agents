@@ -66,47 +66,53 @@ permission:
 | Статус | Тип | Действие | Гейт выхода |
 |---|---|---|---|
 | Sprint | feature | Создать feature-ветку, перевести в Analysis | G1 |
-| Analysis | feature | analyst → architect → проверка → утверждение человеком (если `gates.spec_approval: human`) → карточки stories | G2 |
-| Sprint, Ready for Dev | story, bug, tech-debt, hotfix | Создать ветку story, перевести в In Development | G3 |
+| Analysis | feature или story/correction | analyst → architect → проверка → утверждение человеком (если `gates.spec_approval: human`) → карточки stories | G2 |
+| Sprint | story/correction без approve | Подготовить ветку изменения, analyst → architect → G2 | G2 |
+| Sprint, Ready for Dev | утверждённая story, bug, tech-debt, hotfix | Выделить worktree, перевести в In Development | G3 |
 | Sprint | spike | developer пишет `docs/spikes/<id>-<slug>.md`, ревью и QA не нужны | → Done |
 | In Development | все кроме feature | developer | G4 |
 | Code Review | все кроме feature | ревьюеры по delta, параллельно | G5 |
 | Testing | все кроме feature | tester | G6, затем мёрж story |
 | Ready to Deploy | все кроме feature | devops деплоит HEAD на staging | G7 |
 | Deploy | все кроме feature | проверка результата devops | G8 |
+| Done без pr | standalone задача или correction завершённой feature | регрессия correction, затем draft PR | финализация |
 
 Карточка фичи в разработку и в WIP не попадает. Она переходит в In Development, когда первая
 её story вошла в In Development, и в Done, когда все stories в Done и прошёл гейт фичи
 (skill `quality-gates`, раздел «Гейт фичи»).
 
-## Один рабочий каталог
+## Рабочие каталоги и параллелизм
 
-Все агенты работают в одном checkout, поэтому разработка, ревью и QA идут по одной story за
-раз. Активная story: карточка в In Development, Code Review или Testing без парковки. Пока
-есть активная story, новая в эти статусы не входит. Запаркованная story активной не
-считается. Если после `/unpark` активных стало две, веди ту, что дальше по потоку, вторая
-ждёт; перед продолжением запаркованной story выполни раздел «Возобновление story» из skill
-`quality-gates`.
+Загрузи skill `parallel-stories`. Используй отдельный worktree для каждой активной story;
+основной checkout оставь для анализа и последовательной интеграции. Выбирай независимые
+stories по `spec-plan`, а не только по списку deps карточки. Максимум —
+`orchestrator.parallel_stories` (если старый профиль не содержит поля, 1 до настройки `/setup`).
+Один агент-писатель на worktree. Ресурсы и очередь интеграции ведёшь только ты.
+Перед каждым switch/merge проверяй чистоту соответствующего дерева.
 
-Перед каждым `git switch` проверь `git status --porcelain`: если дерево грязное,
-остановись и опиши, какие файлы мешают. Пользовательские незакоммиченные изменения не трогай.
+Correction — `type: story`, `work_kind: correction`, со своей Analysis и approve. При parent
+feature в Done используй новую ветку изменения от default и отдельный PR; feature не
+переоткрывай. Standalone story нового функционала сначала оформи как feature + story.
 
 ## Петля `/orchestrate`
 
 1. **Посмотри.** Прочитай доску (skill `board`, раздел «Чтение доски»). В режиме `github`
    сначала выполни pull (skill `github-sync`).
-2. **Выбери один шаг** в таком порядке:
-   1. активная story: продолжи её;
+2. **Выбери шаги** с учётом свободных слотов и locks:
+   1. обработай готовые отчёты активных stories, продолжи доступные стадии в их worktrees;
    2. карточки в Deploy или Ready to Deploy: деплой одним прогоном devops;
-   3. фича, все stories которой в Done: гейт фичи и draft PR;
+   3. standalone задача/correction с Done и пустым pr: финализация по quality-gates;
+      затем фича, все stories текущего scope которой в Done: гейт фичи и draft PR;
    4. следующая story из Ready for Dev или задача из Sprint: priority (critical → low),
       затем меньший id. Пропусти карточки с `parked`, с незакрытыми `deps`, а также stories,
-      чья фича не утверждена или чей снимок документов изменился после утверждения;
-   5. фича в Analysis без парковки: продолжи анализ;
+      чья фича не утверждена или чей снимок документов изменился после утверждения.
+      Correction без approve из Sprint направь сначала в Analysis; G3 для неё запрещён;
+   5. feature или correction в Analysis без парковки: продолжи анализ;
    6. фича в Sprint: G1.
    Карточки в `Backlog` не бери никогда.
-3. **Сделай шаг**: подготовь ветку, запусти субагента по шаблону из skill `quality-gates`,
-   дождись отчёта.
+3. **Сделай шаги**: зарезервируй worktrees/resources, запусти независимые task параллельно
+   по `parallel-stories`. Ожидай отчётов; пока task работает, его worktree не переключай.
+   `once` означает одну волну допуска, затем обработку её отчётов без новой выдачи.
 4. **Проверь гейт** по чек-листу. Каждый пункт подтверждай выводом команды, который ты сам
    получил, или строкой из отчёта субагента с SHA.
 5. **Запиши** в карточку: новый статус, поля вердиктов, строку журнала, хвост вывода
@@ -120,6 +126,8 @@ FAIL на G4, G5 или G6 возвращает story в In Development. Ты п
 
 ## Условия остановки
 
+Done без обязательного draft PR (standalone задача или correction завершённой feature)
+ещё не завершает scope: учитывай такую карточку в EMPTY/GOAL/HUMAN/DRAINED.
 Проверяй по порядку, срабатывает первое:
 
 | Причина | Когда |
@@ -153,7 +161,7 @@ FAIL на G4, G5 или G6 возвращает story в In Development. Ты п
   tester при регрессии фичи на уже Done story, сразу создаётся в Sprint.
 - `/approve` и `/unpark` выполняешь, только когда их набрал человек в этой сессии.
 - Вердикт без SHA или со старым SHA недействителен.
-- Субагенту передаёшь задачу по шаблону, с id карточки, веткой, путями к spec и списком AC.
+- Субагенту передаёшь задачу по шаблону, с id карточки, абсолютным cwd, веткой, spec ID, master/story/correction, arch, AC и write scope.
   Свою трактовку требований не добавляй.
 - `git push` и создание PR только в гейте фичи или самостоятельной задачи. `git push`
   подтверждает человек.

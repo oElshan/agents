@@ -40,8 +40,7 @@ Clean Architecture, API design, устойчивость и масштабиро
 
 ## Вход
 
-Оркестратор передаёт: id story, ветку story, базовую ветку, команду diff, SHA, путь к spec
-фичи. Ревьюй только backend-delta: `git diff <base>...<story> -- '*.java' '*.kt' '*.sql'
+Оркестратор передаёт: id story, ветку story, базовую ветку, команду diff, SHA, cwd, пути к master и story/correction spec, write scope и действующие AC. Ревьюй только backend-delta: `git diff <base>...<story> -- '*.java' '*.kt' '*.sql'
 '*.xml' '*.yml' '*.yaml' '*.gradle' '*.kts' 'pom.xml'`. Игнорируй `build/`, `target/`,
 `generated/`.
 
@@ -50,7 +49,7 @@ Clean Architecture, API design, устойчивость и масштабиро
 1. Проверь, что `git rev-parse <story>` равен переданному SHA, иначе `BLOCKED: SHA изменился`.
 2. Прочитай `.agents/profile.md` (стек, `topology`, `quality.high_load`), build-файл
    (версии Java и Spring), `AGENTS.md`.
-3. Прочитай блок SDC в spec фичи. Если spec у story нет (самостоятельная задача), блок SDC
+3. Прочитай SDC своей story/correction и общие ограничения master. Если spec у story нет (самостоятельная задача), блок SDC
    в ревью не применяется.
 4. Загрузи skills `java-review` (чек-листы) и `db-migration`. Пройди чек-листы по delta.
    Для блока SDC сверяй код со слотами spec и только по AC этой story: слот, который

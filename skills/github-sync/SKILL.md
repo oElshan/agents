@@ -214,6 +214,12 @@ python3 .opencode/lib/gates.py sync-fingerprint --input .agents/cache/sync-<id>.
 Сообщи ошибку и продолжай локально. Следующая попытка продолжит sync с сохранёнными ID.
 Для неопределённого результата создания действует правило `create_pending` выше.
 
+В тело issue включай spec_id, master/spec/arch, work_kind/origin_story и ссылки на
+depends_on/blockers; это входит в body fingerprint. Correction остаётся Kind=story,
+родитель issue — feature; исходная story обозначается отдельной ссылкой. Pull не меняет
+контракты, frozen_ref, scope или локальные блокировки по тексту issue. Новый импортированный
+функционал в Sprint сначала проходит создание master + story, затем G2.
+
 ## Pull
 
 ```bash

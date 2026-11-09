@@ -100,6 +100,7 @@
     { "action": "integration.use", "resource": "skill:github-sync", "effect": "allow" },
     { "action": "integration.use", "resource": "skill:java-review", "effect": "allow" },
     { "action": "integration.use", "resource": "skill:java-spring", "effect": "allow" },
+    { "action": "integration.use", "resource": "skill:parallel-stories", "effect": "allow" },
     { "action": "integration.use", "resource": "skill:project-setup", "effect": "allow" },
     { "action": "integration.use", "resource": "skill:quality-gates", "effect": "allow" },
     { "action": "integration.use", "resource": "skill:react-fsd", "effect": "allow" },

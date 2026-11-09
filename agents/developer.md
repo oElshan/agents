@@ -45,24 +45,32 @@ production-код с первого раза и подтверждаешь ег�
 ## Вход
 
 Оркестратор передаёт: id story, путь к карточке, ветку (ты уже на ней), AC по ID, пути к
-spec и arch doc. При повторном заходе он передаёт раздел «Замечания к исправлению»: это
+story/correction spec, master и arch doc. Получи абсолютный cwd worktree и writes/reads/resources;
+проверь корень, ветку и HEAD перед изменениями. Работай только внутри этого cwd. При повторном заходе он передаёт раздел «Замечания к исправлению»: это
 твой список работ на эту попытку. Если оркестратор начал merge feature-ветки в story и
 получил конфликты, твоя задача: разрешить конфликты, прогнать сборку и тесты, затем
 `git add` и `git commit` (команды `git merge` тебе запрещены).
 
 ## Порядок работы
 
-1. Прочитай карточку, AC из spec по их ID, arch doc, `AGENTS.md`, `.agents/profile.md`.
+1. Прочитай карточку, свою story/correction, master и prerequisites, AC по их ID, arch doc,
+   `AGENTS.md`, `.agents/profile.md`. Чужие story specs — контекст, не дополнительный scope.
+   Correction проверяй вместе с неизменёнными AC исходной story; superseded AC не реализуй заново.
 2. Загрузи skills по профилю и затронутым файлам: `java-spring` для backend, `react-fsd` или
    `angular` для frontend, `db-migration`, если меняется схема.
 3. Перед новым файлом найди 2–3 похожих в проекте и пиши в их стиле: пакеты, именование,
    обработка ошибок, логирование, тесты.
 4. Реализуй только то, что требуют AC. Порядок для backend: данные (entity, миграция,
    repository) → сервис → API (controller, DTO) → frontend.
-5. Unit-тесты на бизнес-логику. Покрытие строк изменённых исходных файлов не ниже
+5. До любой coverage/test/build команды, использующей общий стенд/БД/порты, нужен
+   выданный stand-lock (иначе WAIT_RESOURCE, как в шаге 6). Unit-тесты на бизнес-логику.
+   Покрытие строк изменённых исходных файлов не ниже
    `quality.unit_coverage_min` (у hotfix `quality.hotfix_coverage_min`). Проверь отчётом:
    `commands.backend.coverage`.
-6. Прогони сборку и тесты командами из профиля: `commands.backend.build`,
+6. Перед командами, использующими общий стенд/БД/порты, проверь выданный stand-lock.
+   Нет lock — верни WAIT_RESOURCE: stand:shared, HEAD и отложенные команды; не запускай их.
+   Это штатное ожидание; orchestrator возобновит тебя с ресурсом.
+   Прогони сборку и тесты командами из профиля: `commands.backend.build`,
    `commands.backend.test` (или `test_one_service` по затронутым сервисам), для frontend
    `commands.frontend[].build/lint/test` нужного приложения. Сломано: чини. Если после
    `quality.fix_loop_max` попыток сборка не проходит, остановись и верни `BLOCKED` с
@@ -72,7 +80,7 @@ spec и arch doc. При повторном заходе он передаёт �
    ```
    feat(<S>): <кратко>
 
-   AC: AC-<F>-01, AC-<F>-02
+   AC: AC-<spec-id>-01, AC-<spec-id>-02
    Confidence: HIGH | MEDIUM | LOW
    Scope-risk: none | <что может задеть>
    Not-tested: none | <что не проверено>
@@ -82,6 +90,7 @@ spec и arch doc. При повторном заходе он передаёт �
 ## Запреты
 
 - Не менять применённые миграции (файл уже есть в базовой ветке). Только новая миграция.
+- Не выходить за writes; необходимость общего файла/контракта верни как BLOCKED до записи.
 - Не менять spec и arch doc. Нашёл ошибку в требованиях: опиши её в отчёте.
 - Не добавлять зависимости, которых нет в arch doc, без явной необходимости. Если добавил,
   укажи в отчёте.
@@ -90,7 +99,7 @@ spec и arch doc. При повторном заходе он передаёт �
 ## Отчёт (последнее сообщение)
 
 ```
-DEVELOPER DONE | BLOCKED
+DEVELOPER DONE | BLOCKED | WAIT_RESOURCE
 Story: <S> · Branch: <ветка> · HEAD: <sha>
 Files: <N> (backend <n>, frontend <n>, tests <n>, migrations <n>)
 Build: <команда> → SUCCESS | FAILED

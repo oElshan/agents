@@ -22,7 +22,9 @@ description: Процедура tester - тест-кейсы из AC, уровн
 - high-load: запрос без пагинации ограничен, cap на page size, последняя страница корректна;
 - слот NOT-DOING (SDC 8): исключённое не реализовано.
 
-ID тест-кейсов `TC-<F>-NNN`, у каждого ссылка на AC.
+ID тест-кейсов `TC-<spec-id>-NNN`, у каждого ссылка на AC. Для correction сначала
+собери действующие AC по corrects/supersedes из write-spec/references/spec-graph.md:
+старые заменённые AC сохраняются в истории, но не ожидаются одновременно с новыми.
 
 ## 2. Сборка
 
@@ -97,17 +99,18 @@ repro (команда стенда, запрос, роль), expected из AC, a
 
 ## 7. QA-документ
 
-`docs/qa/<F>-<slug>.md` (у самостоятельной задачи `docs/qa/<id>-<slug>.md`). Документ живой:
+`docs/qa/F<F>/S<N>.md`, correction `docs/qa/F<F>/S<N>-C<K>.md`,
+регрессия `docs/qa/F<F>/regression.md` (у самостоятельной задачи `docs/qa/<id>-<slug>.md`). Документ живой:
 при каждом прогоне обновляются «Последний прогон» и результаты.
 
 ```markdown
 # QA: <F> — <название>
 
-Spec: docs/specs/<F>-<slug>.md
+Spec: <путь story/correction>; Master: <путь master>
 Последний прогон: <дата> · story <S> · Tested commit <sha> · стенд A | B | C · вердикт PASS | FAIL | NOT_VERIFIED
 
-## TC-<F>-001: <сценарий>
-AC: AC-<F>-01 · Приоритет: Critical | High | Medium · Тип: API | UI | RBAC | Edge
+## TC-<spec-id>-001: <сценарий>
+AC: AC-<spec-id>-01 · Приоритет: Critical | High | Medium · Тип: API | UI | RBAC | Edge
 | # | Действие | Данные | Ожидаем |
 |---|---|---|---|
 | 1 | POST /api/v1/… | {…} | 201 + объект |
@@ -124,6 +127,7 @@ AC: AC-<F>-01 · Приоритет: Critical | High | Medium · Тип: API | U
 
 ## Режим regression
 
-Оркестратор запускает его на HEAD feature-ветки перед PR. Прогони все AC фичи (не только
-одной story) теми же правилами. Сломанный AC, который раньше был PASS, в отчёте отдельной
+Оркестратор запускает его на HEAD feature-ветки перед PR. Прогони действующие AC всех интегрированных stories/corrections
+фичи по правилам corrects/supersedes. Список integrated spec ID и SHA передаёт orchestrator;
+проверь вхождение SHA в текущую ветку. Черновики и ещё не интегрированные corrections не включай. Сломанный AC, который раньше был PASS, в отчёте отдельной
 секцией `REGRESSION` с id story, AC и evidence.

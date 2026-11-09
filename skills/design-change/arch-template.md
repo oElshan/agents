@@ -1,6 +1,8 @@
 # Architecture: {{F}} — {{TITLE}}
 
-Spec: `docs/specs/{{F}}-{{slug}}.md`
+Master: `docs/specs/F{{F}}-{{slug}}/master.md`
+Story/correction specs: {{ссылки на затронутые контракты}}
+Для correction: {{ссылка на исходный arch; этот файл — отдельное дополнение}}
 
 ## 1. Обзор
 

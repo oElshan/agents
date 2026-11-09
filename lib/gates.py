@@ -19,6 +19,9 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from spec_graph import Graph
+
 
 class GateError(Exception):
     pass
@@ -115,6 +118,10 @@ def contract(args):
     ref = repo.commit(args.ref)
     paths = [path_arg(args.spec), path_arg(args.arch), ".agents/profile.md", "AGENTS.md",
              "docs/arch/budget.md", "docs/arch/ownership-map.md"]
+    graph = Graph(repo, ref)
+    if args.spec in graph.nodes:
+        graph.validate(args.spec)
+        paths.extend(graph.closure(args.spec))
     entries = {}
     for path in paths:
         repo.blob(ref, path)
@@ -138,6 +145,63 @@ def contract(args):
     snapshot = hashlib.sha256(encoded).hexdigest()
     return result("FAIL" if args.expected and args.expected != snapshot else "PASS",
                   commit=ref, snapshot=snapshot, spec_sha=entries[args.spec][2], files=entries)
+
+
+def spec_graph(args):
+    repo = Repo()
+    ref = repo.commit(args.ref)
+    graph = Graph(repo, ref)
+    selected = path_arg(args.spec)
+    family = graph.validate(selected)
+    changed = []
+    if args.baseline:
+        baseline = repo.commit(args.baseline)
+        # Approval freezes blobs, not commit topology (a human may squash the PR).
+        old = Graph(repo, baseline)
+        old.validate(selected)
+        changed = [p for p in old.closure(selected) if repo.entry(baseline, p) != repo.entry(ref, p)]
+    return result("FAIL" if changed else "PASS", commit=ref, changed=changed,
+                  nodes=[dict(path=p, id=graph.nodes[p]["id"], kind=graph.nodes[p]["kind"],
+                              parent=graph.parent(p), depends_on=sorted(graph.dependencies(p))) for p in family])
+
+
+def spec_plan(args):
+    repo = Repo()
+    graph = Graph(repo, repo.commit(args.ref))
+    return result(**graph.plan(path_arg(args.spec), args.completed, args.active,
+                               args.resolved_blocker, args.limit, args.candidate))
+
+
+def spec_effective(args):
+    repo = Repo()
+    graph = Graph(repo, repo.commit(args.ref))
+    return result(**graph.effective(path_arg(args.spec), args.integrated, args.include))
+
+
+def spec_scope(args):
+    repo = Repo()
+    head, base = repo.commit(args.head), repo.commit(args.base)
+    graph = Graph(repo, head)
+    selected = path_arg(args.spec)
+    graph.validate(selected)
+    node = graph.nodes[selected]
+    if node["kind"] == "master":
+        raise GateError("Implementation requires a story or correction spec")
+    base = repo.git("merge-base", base, head).decode().strip()
+    changed = repo.changes(base, head)
+    allowed = node["writes"]
+    qa = path_arg(args.qa_report) if args.qa_report else None
+    if qa and (not qa.startswith("docs/qa/") or not qa.endswith(".md")):
+        raise GateError("QA exception must name one Markdown file in docs/qa/")
+    outside = []
+    for p in changed:
+        if p == qa and repo.entry(head, p) and repo.entry(head, p)[0] == "100644":
+            continue
+        if p.startswith(("docs/specs/", "docs/arch/", ".opencode/", ".agents/")) or p in ("AGENTS.md", "opencode.json", "opencode.jsonc"):
+            outside.append(p)
+        elif not any(p == s or (s.endswith("/") and p.startswith(s)) for s in allowed):
+            outside.append(p)
+    return result("FAIL" if outside else "PASS", changed=changed, outside_scope=outside)
 
 
 def parse_xml(data):
@@ -395,6 +459,28 @@ def parser():
     p.add_argument("--spec", required=True)
     p.add_argument("--arch", required=True)
     p.add_argument("--expected")
+    p = sub.add_parser("spec-graph")
+    p.add_argument("--ref", default="HEAD")
+    p.add_argument("--spec", required=True)
+    p.add_argument("--baseline")
+    p = sub.add_parser("spec-plan")
+    p.add_argument("--ref", default="HEAD")
+    p.add_argument("--spec", required=True)
+    p.add_argument("--completed", action="append", default=[])
+    p.add_argument("--active", action="append", default=[])
+    p.add_argument("--resolved-blocker", action="append", default=[])
+    p.add_argument("--limit", type=int, default=2)
+    p.add_argument("--candidate", action="append")
+    p = sub.add_parser("spec-effective")
+    p.add_argument("--ref", default="HEAD")
+    p.add_argument("--spec", required=True)
+    p.add_argument("--integrated", action="append", default=[])
+    p.add_argument("--include")
+    p = sub.add_parser("spec-scope")
+    p.add_argument("--base", required=True)
+    p.add_argument("--head", default="HEAD")
+    p.add_argument("--spec", required=True)
+    p.add_argument("--qa-report")
     p = sub.add_parser("coverage")
     p.add_argument("--base", required=True)
     p.add_argument("--head", default="HEAD")

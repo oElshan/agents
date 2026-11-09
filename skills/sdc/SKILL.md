@@ -6,7 +6,7 @@ description: System Design Checklist - 8 слотов (ownership, идемпот
 # System Design Checklist (SDC)
 
 Восемь системных вопросов, на которые фича отвечает до начала разработки. analyst заполняет
-слоты в spec, architect детализирует их в arch doc, java-reviewer сверяет код со слотами,
+общие ограничения в master и конкретные слоты в story/correction spec, architect детализирует их в arch doc, java-reviewer сверяет код со слотами,
 tester проверяет слоты 2, 5, 8 на стенде, devops проверяет 4 и 7 на staging.
 
 ## Когда обязателен
